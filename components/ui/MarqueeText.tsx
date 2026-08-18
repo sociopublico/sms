@@ -12,7 +12,7 @@ export function MarqueeText({
   href?: string;
   className?: string;
 }) {
-  const wrapRef = useRef<HTMLElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLSpanElement>(null);
   const [shift, setShift] = useState(0);
 
@@ -39,32 +39,29 @@ export function MarqueeText({
       <span className="block truncate">{text}</span>
     );
 
-  const shared = {
-    ref: wrapRef,
-    onMouseEnter: onEnter,
-    onMouseLeave: () => setShift(0),
-    className: `relative block overflow-hidden ${className}`.trim(),
-  };
-
   const measure = (
     <span ref={sourceRef} className="invisible absolute left-0 top-0 whitespace-nowrap" aria-hidden>
       {text}
     </span>
   );
 
-  if (href) {
-    return (
-      <Link href={href} {...shared}>
-        {measure}
-        {inner}
-      </Link>
-    );
-  }
+  const content = href ? (
+    <Link href={href} className={className}>
+      {inner}
+    </Link>
+  ) : (
+    <span className={className}>{inner}</span>
+  );
 
   return (
-    <span {...shared}>
+    <div
+      ref={wrapRef}
+      className="relative overflow-hidden"
+      onMouseEnter={onEnter}
+      onMouseLeave={() => setShift(0)}
+    >
       {measure}
-      {inner}
-    </span>
+      {content}
+    </div>
   );
 }
