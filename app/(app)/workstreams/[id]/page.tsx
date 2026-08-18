@@ -2,7 +2,12 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { STATUS_LABEL } from "@/lib/dates";
-import { addAssignment, removeAssignment, updateWorkstream } from "../../project-actions";
+import { addAssignment, removeAssignment, updateWorkstream, updateWorkstreamStatus } from "../../project-actions";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { fieldControlClass } from "@/components/ui/Field";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatusSelect } from "@/components/ui/StatusSelect";
 
 export default async function WorkstreamPage({
   params,
@@ -21,7 +26,7 @@ export default async function WorkstreamPage({
       .eq("id", id)
       .maybeSingle(),
     supabase.from("people").select("id, display_name").is("deleted_at", null).order("display_name"),
-    supabase.from("roles").select("id, name").order("name"),
+    supabase.from("roles").select("id, name").is("deleted_at", null).order("name"),
   ]);
   if (!ws) notFound();
   const project = ws.projects as
@@ -34,58 +39,65 @@ export default async function WorkstreamPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm text-stone-500">
-          {clientName} · {proj?.code}
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight">{ws.name}</h1>
-        <p className="text-sm text-stone-500">
-          {STATUS_LABEL[ws.status]} · {ws.start_on ?? "sin inicio"} → {ws.end_on ?? "sin fin"}
-        </p>
-      </div>
+      <PageHeader
+        kicker={`${clientName} · ${proj?.code}`}
+        title={ws.name}
+        description={`${STATUS_LABEL[ws.status]} · ${ws.start_on ?? "sin inicio"} → ${ws.end_on ?? "sin fin"}`}
+        actions={
+          <StatusSelect
+            value={ws.status}
+            canWrite={session.canWrite}
+            onChange={updateWorkstreamStatus.bind(null, ws.id)}
+          />
+        }
+      />
 
       {session.canWrite ? (
-        <form action={updateWorkstream} className="flex flex-wrap gap-3 rounded border border-stone-200 bg-white p-4">
-          <input type="hidden" name="id" value={ws.id} />
-          <input name="name" defaultValue={ws.name} className="rounded border border-stone-300 px-3 py-2 text-sm" />
-          <select name="status" defaultValue={ws.status} className="rounded border border-stone-300 px-3 py-2 text-sm">
-            <option value="en_curso">En curso</option>
-            <option value="pausado">Pausado</option>
-            <option value="mantenimiento">Mantenimiento</option>
-            <option value="finalizado">Finalizado</option>
-          </select>
-          <button className="rounded bg-stone-900 px-3 py-2 text-sm text-white">Guardar</button>
-        </form>
+        <Card className="p-5">
+          <form action={updateWorkstream} className="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="id" value={ws.id} />
+            <input name="name" defaultValue={ws.name} className={`${fieldControlClass} w-auto min-w-56`} />
+            <select name="status" defaultValue={ws.status} className={`${fieldControlClass} w-auto`}>
+              <option value="en_curso">En curso</option>
+              <option value="pausado">Pausado</option>
+              <option value="mantenimiento">Mantenimiento</option>
+              <option value="finalizado">Finalizado</option>
+            </select>
+            <Button type="submit">Guardar</Button>
+          </form>
+        </Card>
       ) : null}
 
       <section className="space-y-3">
-        <h2 className="text-lg font-medium">Equipo</h2>
-        <p className="text-sm text-stone-600">Varias personas por rol, sin columnas duplicadas.</p>
-        <ul className="divide-y divide-stone-100 rounded border border-stone-200 bg-white">
-          {(ws.assignments ?? []).map((asg) => {
-            const person = asg.people as { display_name: string } | { display_name: string }[] | null;
-            const role = asg.roles as { name: string } | { name: string }[] | null;
-            const personName = Array.isArray(person) ? person[0]?.display_name : person?.display_name;
-            const roleName = Array.isArray(role) ? role[0]?.name : role?.name;
-            return (
-              <li key={asg.id} className="flex items-center justify-between px-4 py-2 text-sm">
-                <span>
-                  <span className="font-medium">{personName}</span>
-                  <span className="text-stone-500"> · {roleName}</span>
-                </span>
-                {session.canWrite ? (
-                  <form action={removeAssignment.bind(null, asg.id, ws.id)}>
-                    <button className="underline">Quitar</button>
-                  </form>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+        <h2 className="text-lg font-medium text-ink">Equipo</h2>
+        <p className="text-sm text-muted">Varias personas por rol, sin columnas duplicadas.</p>
+        <Card>
+          <ul className="divide-y divide-line">
+            {(ws.assignments ?? []).map((asg) => {
+              const person = asg.people as { display_name: string } | { display_name: string }[] | null;
+              const role = asg.roles as { name: string } | { name: string }[] | null;
+              const personName = Array.isArray(person) ? person[0]?.display_name : person?.display_name;
+              const roleName = Array.isArray(role) ? role[0]?.name : role?.name;
+              return (
+                <li key={asg.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                  <span>
+                    <span className="font-medium text-ink">{personName}</span>
+                    <span className="text-muted"> · {roleName}</span>
+                  </span>
+                  {session.canWrite ? (
+                    <form action={removeAssignment.bind(null, asg.id, ws.id)}>
+                      <button className="text-sm text-navy hover:text-cyan">Quitar</button>
+                    </form>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
         {session.canWrite ? (
           <form action={addAssignment} className="flex flex-wrap gap-2">
             <input type="hidden" name="workstream_id" value={ws.id} />
-            <select name="person_id" required className="rounded border border-stone-300 px-3 py-2 text-sm">
+            <select name="person_id" required className={`${fieldControlClass} w-auto min-w-44`}>
               <option value="">Persona</option>
               {(people ?? []).map((p) => (
                 <option key={p.id} value={p.id}>
@@ -93,7 +105,7 @@ export default async function WorkstreamPage({
                 </option>
               ))}
             </select>
-            <select name="role_id" required className="rounded border border-stone-300 px-3 py-2 text-sm">
+            <select name="role_id" required className={`${fieldControlClass} w-auto min-w-36`}>
               <option value="">Rol</option>
               {(roles ?? []).map((r) => (
                 <option key={r.id} value={r.id}>
@@ -101,7 +113,7 @@ export default async function WorkstreamPage({
                 </option>
               ))}
             </select>
-            <button className="rounded bg-stone-900 px-3 py-2 text-sm text-white">Asignar</button>
+            <Button type="submit">Asignar</Button>
           </form>
         ) : null}
       </section>

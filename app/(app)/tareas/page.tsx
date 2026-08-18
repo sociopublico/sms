@@ -1,78 +1,99 @@
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { deleteTask, upsertTask } from "../catalog-actions";
+import { archiveTask, upsertTask } from "../catalog-actions";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { ColorSwatch } from "@/components/ui/ColorSwatch";
+import { ConfirmDelete } from "@/components/ui/ConfirmDelete";
+import { Field, fieldControlClass } from "@/components/ui/Field";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function TasksPage() {
   const session = await requireSession();
   const supabase = await createClient();
   const [{ data: tasks }, { data: roles }] = await Promise.all([
-    supabase.from("tasks").select("id, name, color, task_roles(role_id, roles(name))").order("name"),
-    supabase.from("roles").select("id, name").order("name"),
+    supabase
+      .from("tasks")
+      .select("id, name, color, task_roles(role_id, roles(name))")
+      .is("deleted_at", null)
+      .order("name"),
+    supabase.from("roles").select("id, name").is("deleted_at", null).order("name"),
   ]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Tareas × rol</h1>
-        <p className="text-sm text-stone-600">
-          El color pinta el Gantt. Los roles asociados son quienes se enteran esa semana. On hold no
-          dispara ejecución.
-        </p>
-      </div>
+      <PageHeader
+        title="Tareas × rol"
+        description="El color pinta el Gantt. Los roles asociados son quienes se enteran esa semana. On hold no dispara ejecución."
+      />
       {session.canWrite ? (
-        <form action={upsertTask} className="space-y-3 rounded border border-stone-200 bg-white p-4">
-          <div className="flex flex-wrap gap-3">
-            <input name="name" required placeholder="Nueva tarea" className="rounded border border-stone-300 px-3 py-2 text-sm" />
-            <input name="color" type="color" defaultValue="#64748b" />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(roles ?? []).map((role) => (
-              <label key={role.id} className="flex items-center gap-1 text-sm">
-                <input type="checkbox" name="role_ids" value={role.id} />
-                {role.name}
-              </label>
-            ))}
-          </div>
-          <button className="rounded bg-stone-900 px-3 py-1.5 text-sm text-white">Guardar</button>
-        </form>
+        <Card className="p-5">
+          <form action={upsertTask} className="space-y-4">
+            <Field label="Nueva tarea" className="max-w-sm">
+              <input name="name" required placeholder="Nueva tarea" className={fieldControlClass} />
+            </Field>
+            <div>
+              <p className="mb-2 text-sm font-medium text-navy">Color</p>
+              <ColorSwatch />
+            </div>
+            <div>
+              <p className="mb-1 text-sm font-medium text-navy">Roles</p>
+              <div className="flex flex-wrap gap-2">
+                {(roles ?? []).map((role) => (
+                  <label
+                    key={role.id}
+                    className="flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1.5 text-sm"
+                  >
+                    <input type="checkbox" name="role_ids" value={role.id} />
+                    {role.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <Button type="submit">Guardar</Button>
+          </form>
+        </Card>
       ) : null}
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-stone-200 text-left text-stone-500">
-            <th className="py-2">Tarea</th>
-            <th>Roles</th>
-            {session.canWrite ? <th /> : null}
-          </tr>
-        </thead>
-        <tbody>
-          {(tasks ?? []).map((task) => {
-            const roleNames = (task.task_roles ?? [])
-              .map((tr) => {
-                const rel = tr.roles as { name: string } | { name: string }[] | null;
-                if (Array.isArray(rel)) return rel[0]?.name;
-                return rel?.name;
-              })
-              .filter(Boolean)
-              .join(", ");
-            return (
-              <tr key={task.id} className="border-b border-stone-100">
-                <td className="py-2">
-                  <span className="mr-2 inline-block h-3 w-3 rounded-sm" style={{ background: task.color }} />
-                  {task.name}
-                </td>
-                <td className="text-stone-600">{roleNames || "—"}</td>
-                {session.canWrite ? (
-                  <td className="text-right">
-                    <form action={deleteTask.bind(null, task.id)}>
-                      <button className="underline">Borrar</button>
-                    </form>
+      <Card className="overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-line text-left text-muted">
+              <th className="px-4 py-3 font-medium">Tarea</th>
+              <th className="px-4 py-3 font-medium">Roles</th>
+              {session.canWrite ? <th className="px-4 py-3" /> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {(tasks ?? []).map((task) => {
+              const roleNames = (task.task_roles ?? [])
+                .map((tr) => {
+                  const rel = tr.roles as { name: string } | { name: string }[] | null;
+                  if (Array.isArray(rel)) return rel[0]?.name;
+                  return rel?.name;
+                })
+                .filter(Boolean)
+                .join(", ");
+              return (
+                <tr key={task.id} className="border-b border-line last:border-0">
+                  <td className="px-4 py-3">
+                    <span
+                      className="mr-2 inline-block h-3 w-3 rounded-sm"
+                      style={{ background: task.color }}
+                    />
+                    {task.name}
                   </td>
-                ) : null}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  <td className="px-4 py-3 text-muted">{roleNames || "—"}</td>
+                  {session.canWrite ? (
+                    <td className="px-4 py-3 text-right">
+                      <ConfirmDelete label={task.name} action={archiveTask.bind(null, task.id)} />
+                    </td>
+                  ) : null}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Card>
     </div>
   );
 }

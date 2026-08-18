@@ -2,8 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { STATUS_LABEL } from "@/lib/dates";
-import { updateProject } from "../../project-actions";
+import { updateProject, updateProjectStatus, updateWorkstreamStatus } from "../../project-actions";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Field, fieldControlClass } from "@/components/ui/Field";
+import { FichaMissing, missingFicha } from "@/components/ui/FichaMissing";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatusSelect } from "@/components/ui/StatusSelect";
 
 export default async function ProjectDetailPage({
   params,
@@ -24,54 +29,70 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm text-stone-500">{clientName}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">{project.code}</h1>
-      </div>
+      <PageHeader
+        kicker={clientName}
+        title={project.code}
+        actions={
+          <div className="flex items-center gap-2">
+            {missingFicha(project.ficha_url, project.code) ? <FichaMissing /> : null}
+            <StatusSelect
+              value={project.status}
+              canWrite={session.canWrite}
+              onChange={updateProjectStatus.bind(null, project.id)}
+            />
+          </div>
+        }
+      />
       {session.canWrite ? (
-        <form action={updateProject} className="grid gap-3 rounded border border-stone-200 bg-white p-4 md:grid-cols-2">
-          <input type="hidden" name="id" value={project.id} />
-          <label className="text-sm">
-            ID
-            <input name="code" defaultValue={project.code} className="mt-1 w-full rounded border border-stone-300 px-3 py-2" />
-          </label>
-          <label className="text-sm">
-            Ficha
-            <input name="ficha_url" defaultValue={project.ficha_url ?? ""} className="mt-1 w-full rounded border border-stone-300 px-3 py-2" />
-          </label>
-          <label className="text-sm">
-            Tipo
-            <select name="kind" defaultValue={project.kind} className="mt-1 w-full rounded border border-stone-300 px-3 py-2">
-              <option value="client">Cliente</option>
-              <option value="internal">Interno</option>
-            </select>
-          </label>
-          <label className="text-sm">
-            Estado
-            <select name="status" defaultValue={project.status} className="mt-1 w-full rounded border border-stone-300 px-3 py-2">
-              <option value="en_curso">En curso</option>
-              <option value="pausado">Pausado</option>
-              <option value="mantenimiento">Mantenimiento</option>
-              <option value="finalizado">Finalizado</option>
-            </select>
-          </label>
-          <button className="rounded bg-stone-900 px-3 py-2 text-sm text-white md:col-span-2">Guardar contrato</button>
-        </form>
+        <Card className="p-5">
+          <form action={updateProject} className="grid gap-4 md:grid-cols-2">
+            <input type="hidden" name="id" value={project.id} />
+            <Field label="ID">
+              <input name="code" defaultValue={project.code} className={fieldControlClass} />
+            </Field>
+            <Field label="Ficha">
+              <input name="ficha_url" defaultValue={project.ficha_url ?? ""} className={fieldControlClass} />
+            </Field>
+            <Field label="Tipo">
+              <select name="kind" defaultValue={project.kind} className={fieldControlClass}>
+                <option value="client">Cliente</option>
+                <option value="internal">Interno</option>
+              </select>
+            </Field>
+            <Field label="Estado">
+              <select name="status" defaultValue={project.status} className={fieldControlClass}>
+                <option value="en_curso">En curso</option>
+                <option value="pausado">Pausado</option>
+                <option value="mantenimiento">Mantenimiento</option>
+                <option value="finalizado">Finalizado</option>
+              </select>
+            </Field>
+            <div className="md:col-span-2">
+              <Button type="submit">Guardar contrato</Button>
+            </div>
+          </form>
+        </Card>
       ) : (
-        <p className="text-sm text-stone-600">{project.ficha_url || "Sin ficha"}</p>
+        <p className="text-sm text-muted">{project.ficha_url || "Sin ficha"}</p>
       )}
       <section>
-        <h2 className="mb-2 text-lg font-medium">Workstreams</h2>
+        <h2 className="mb-3 text-lg font-medium text-ink">Workstreams</h2>
         <ul className="space-y-2">
           {(project.workstreams ?? []).map((ws) => (
-            <li key={ws.id} className="rounded border border-stone-200 bg-white px-4 py-3 text-sm">
-              <Link href={`/workstreams/${ws.id}`} className="font-medium hover:underline">
-                {ws.name}
-              </Link>
-              <span className="ml-2 text-stone-500">{STATUS_LABEL[ws.status]}</span>
-              <span className="ml-2 text-stone-400">
-                {ws.start_on ?? "—"} → {ws.end_on ?? "—"}
-              </span>
+            <li key={ws.id}>
+              <Card className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                <Link href={`/workstreams/${ws.id}`} className="font-medium text-ink hover:text-cyan">
+                  {ws.name}
+                </Link>
+                <StatusSelect
+                  value={ws.status}
+                  canWrite={session.canWrite}
+                  onChange={updateWorkstreamStatus.bind(null, ws.id)}
+                />
+                <span className="text-muted">
+                  {ws.start_on ?? "—"} → {ws.end_on ?? "—"}
+                </span>
+              </Card>
             </li>
           ))}
         </ul>

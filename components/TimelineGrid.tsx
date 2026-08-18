@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { formatWeekLabel } from "@/lib/dates";
+import { formatWeekLabel, isCurrentMonth } from "@/lib/dates";
 import { setWeekTasks } from "@/app/(app)/project-actions";
+import { MarqueeText } from "@/components/ui/MarqueeText";
 
 export type TimelineTask = { id: string; name: string; color: string };
 export type TimelineRow = {
@@ -23,15 +24,31 @@ export function TimelineGrid({
   rows,
   tasks,
   canWrite,
+  thisWeek,
+  prevHref,
+  nextHref,
 }: {
   weeks: string[];
   rows: TimelineRow[];
   tasks: TimelineTask[];
   canWrite: boolean;
+  thisWeek: string;
+  prevHref: string;
+  nextHref: string;
 }) {
   const [open, setOpen] = useState<{ ws: string; week: string } | null>(null);
+  const [selected, setSelected] = useState<{ ws: string; week: string } | null>(null);
+  const [copied, setCopied] = useState<{ ws: string; week: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const taskMap = useMemo(() => Object.fromEntries(tasks.map((t) => [t.id, t])), [tasks]);
+  const clipRef = useRef<string[]>([]);
+  const selectedRef = useRef(selected);
+  const rowsRef = useRef(rows);
+  selectedRef.current = selected;
+  rowsRef.current = rows;
+
+  function cellTasks(wsId: string, week: string) {
+    return rowsRef.current.find((row) => row.id === wsId)?.tasksByWeek[week] ?? [];
+  }
 
   function toggle(wsId: string, week: string, current: TimelineTask[], taskId: string) {
     const ids = current.map((t) => t.id);
@@ -41,50 +58,156 @@ export function TimelineGrid({
     });
   }
 
+  function copySelected() {
+    const cell = selectedRef.current;
+    if (!cell) return;
+    const ids = cellTasks(cell.ws, cell.week).map((task) => task.id);
+    clipRef.current = ids;
+    setCopied(cell);
+    const names = ids
+      .map((id) => tasks.find((task) => task.id === id)?.name)
+      .filter(Boolean)
+      .join(", ");
+    void navigator.clipboard.writeText(names).catch(() => undefined);
+  }
+
+  function pasteSelected() {
+    const cell = selectedRef.current;
+    if (!cell || !canWrite) return;
+    startTransition(async () => {
+      let ids = clipRef.current;
+      try {
+        const text = (await navigator.clipboard.readText()).trim();
+        if (text) {
+          const fromNames = text
+            .split(/[,;\n]+/)
+            .map((name) => name.trim())
+            .filter(Boolean)
+            .map((name) => tasks.find((task) => task.name.toLowerCase() === name.toLowerCase())?.id)
+            .filter(Boolean) as string[];
+          if (fromNames.length || text.length === 0) ids = fromNames;
+        }
+      } catch {
+        /* keep in-memory clip */
+      }
+      await setWeekTasks(cell.ws, cell.week, ids);
+    });
+  }
+
+  useEffect(() => {
+    function typingInField() {
+      const el = document.activeElement;
+      if (!(el instanceof HTMLElement)) return false;
+      return Boolean(el.closest("input:not([type=checkbox]), textarea, select"));
+    }
+
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(null);
+        return;
+      }
+      const copyPaste = (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
+      if (!copyPaste || typingInField()) return;
+      if (event.key === "c" || event.key === "C") {
+        if (!selectedRef.current) return;
+        event.preventDefault();
+        copySelected();
+      }
+      if ((event.key === "v" || event.key === "V") && canWrite && !pending) {
+        if (!selectedRef.current) return;
+        event.preventDefault();
+        pasteSelected();
+      }
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canWrite, pending, tasks]);
+
   return (
-    <div className="overflow-auto rounded border border-stone-200 bg-white">
-      <table className="min-w-full border-collapse text-xs">
+    <div className="w-full">
+      <table className="w-full table-fixed border-collapse text-sm">
         <thead>
-          <tr className="bg-stone-50">
-            <th className="sticky left-0 z-10 min-w-64 bg-stone-50 px-3 py-2 text-left">Workstream</th>
-            <th className="min-w-28 px-2 text-left">PM</th>
-            {weeks.map((week) => (
-              <th key={week} className="min-w-24 px-1 py-2 font-normal text-stone-500">
-                {formatWeekLabel(week)}
-              </th>
-            ))}
+          <tr>
+            <th className="sticky left-0 top-16 z-50 w-[13rem] border-b border-line bg-white px-3 py-2.5 text-left font-medium text-muted shadow-[1px_0_0_0_var(--line)]">
+              Workstream
+            </th>
+            <th className="sticky top-16 z-40 w-[6.5rem] border-b border-line bg-white px-2 text-left font-medium text-muted">PM</th>
+            <th className="sticky top-16 z-40 w-8 border-b border-line bg-white px-0">
+              <Link href={prevHref} className="flex items-center justify-center text-navy hover:text-cyan" aria-label="Semanas anteriores">
+                ‹
+              </Link>
+            </th>
+            {weeks.map((week) => {
+              const current = week === thisWeek;
+              const month = isCurrentMonth(week);
+              return (
+                <th
+                  key={week}
+                  className={`sticky top-16 z-40 border-b border-line px-1 py-2.5 font-medium ${
+                    current ? "bg-[#d9eef6] text-cyan" : month ? "bg-canvas text-ink" : "bg-white text-muted"
+                  }`}
+                >
+                  {formatWeekLabel(week)}
+                  {current ? <div className="text-[11px] font-normal">hoy</div> : null}
+                </th>
+              );
+            })}
+            <th className="sticky top-16 z-40 w-8 border-b border-line bg-white px-0">
+              <Link href={nextHref} className="flex items-center justify-center text-navy hover:text-cyan" aria-label="Semanas siguientes">
+                ›
+              </Link>
+            </th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.id} className="border-t border-stone-100">
-              <td className="sticky left-0 z-10 bg-white px-3 py-2">
-                <Link href={`/workstreams/${row.id}`} className="font-medium hover:underline">
-                  {row.name}
-                </Link>
-                <div className="text-stone-500">
+            <tr key={row.id} className="border-t border-line">
+              <td className="sticky left-0 z-10 overflow-hidden bg-white px-3 py-2 shadow-[1px_0_0_0_var(--line)]">
+                <MarqueeText
+                  href={`/workstreams/${row.id}`}
+                  text={row.name}
+                  className="text-base font-medium text-ink hover:text-cyan"
+                />
+                <div className="truncate text-muted">
                   {row.clientName} · {row.projectCode}
                 </div>
               </td>
-              <td className="px-2 text-stone-600">{row.pms.join(", ") || "—"}</td>
+              <td className="truncate px-2 text-navy">{row.pms.join(", ") || "—"}</td>
+              <td />
               {weeks.map((week) => {
                 const cellTasks = row.tasksByWeek[week] ?? [];
                 const isOpen = open?.ws === row.id && open.week === week;
+                const current = week === thisWeek;
                 return (
-                  <td key={week} className="relative px-1 py-1 align-top">
+                  <td
+                    key={week}
+                    className={`relative px-0.5 py-1 align-top ${current ? "bg-cyan/5" : ""}`}
+                  >
                     <button
                       type="button"
                       disabled={!canWrite || pending}
-                      onClick={() => setOpen(isOpen ? null : { ws: row.id, week })}
-                      className="flex min-h-10 w-full flex-col gap-0.5 rounded border border-transparent px-1 py-1 text-left hover:border-stone-300"
+                      onClick={() => {
+                        setSelected({ ws: row.id, week });
+                        setOpen(isOpen ? null : { ws: row.id, week });
+                      }}
+                      className={`flex min-h-10 w-full min-w-0 flex-col gap-0.5 rounded-lg border px-1 py-1 pb-3 text-left ${
+                        isOpen || (selected?.ws === row.id && selected.week === week)
+                          ? copied?.ws === row.id && copied.week === week
+                            ? "border-dashed border-cyan"
+                            : "border-cyan"
+                          : copied?.ws === row.id && copied.week === week
+                            ? "border-dashed border-cyan/60"
+                            : "border-transparent hover:border-line"
+                      }`}
                     >
                       {cellTasks.length === 0 ? (
-                        <span className="text-stone-300">·</span>
+                        <span className="text-line">·</span>
                       ) : (
                         cellTasks.map((task) => (
                           <span
                             key={task.id}
-                            className="truncate rounded px-1 py-0.5 text-[10px] text-white"
+                            className="truncate rounded-md px-1 py-0.5 text-xs text-white"
                             style={{ background: task.color }}
                           >
                             {task.name}
@@ -93,29 +216,28 @@ export function TimelineGrid({
                       )}
                     </button>
                     {isOpen ? (
-                      <div className="absolute z-20 mt-1 max-h-56 w-48 overflow-auto rounded border border-stone-200 bg-white p-2 shadow-none">
+                      <div className="absolute z-40 mt-1 max-h-56 w-52 overflow-auto rounded-2xl border border-line bg-white p-3">
                         {tasks.map((task) => {
                           const checked = cellTasks.some((t) => t.id === task.id);
                           return (
-                            <label key={task.id} className="flex items-center gap-2 py-0.5">
+                            <label key={task.id} className="flex items-center gap-2 py-1.5">
                               <input
                                 type="checkbox"
                                 checked={checked}
                                 onChange={() => toggle(row.id, week, cellTasks, task.id)}
                               />
-                              <span className="h-2 w-2 rounded-sm" style={{ background: task.color }} />
-                              {task.name}
+                              <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: task.color }} />
+                              <span className="text-navy">{task.name}</span>
                             </label>
                           );
                         })}
-                        <div className="pt-1 text-stone-400">
-                          {taskMap ? `${cellTasks.length} seleccionadas` : null}
-                        </div>
+                        <div className="pt-2 text-muted">{cellTasks.length} seleccionadas</div>
                       </div>
                     ) : null}
                   </td>
                 );
               })}
+              <td />
             </tr>
           ))}
         </tbody>

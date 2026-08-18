@@ -32,3 +32,10 @@ export const STATUS_LABEL: Record<string, string> = {
   mantenimiento: "Mantenimiento",
   finalizado: "Finalizado",
 };
+
+export const STATUS_OPTIONS = ["en_curso", "pausado", "mantenimiento", "finalizado"] as const;
+
+export function isCurrentMonth(iso: string, now = new Date()): boolean {
+  const [year, month] = iso.split("-").map(Number);
+  return year === now.getUTCFullYear() && month === now.getUTCMonth() + 1;
+}

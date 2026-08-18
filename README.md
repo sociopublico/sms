@@ -32,6 +32,6 @@ El seed carga catálogos y workstreams en curso / pausado / mantenimiento desde 
 
 ## Roles de app
 
-- `agustina@sociopublico.com` → admin
-- `alejandra@sociopublico.com` → pm
+- `agustina@sociopublico.com` y `alejandra@sociopublico.com` → admin
+- mails agregados en Usuarios → editor (escribe datos, no usuarios)
 - resto del dominio → member (lectura)

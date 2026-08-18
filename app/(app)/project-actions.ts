@@ -101,6 +101,23 @@ export async function updateProject(formData: FormData) {
   revalidatePath(`/proyectos/${id}`);
 }
 
+export async function updateProjectStatus(id: string, status: string) {
+  const supabase = await assertWrite();
+  const { error } = await supabase.from("projects").update({ status }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/proyectos");
+  revalidatePath(`/proyectos/${id}`);
+}
+
+export async function updateWorkstreamStatus(id: string, status: string) {
+  const supabase = await assertWrite();
+  const { error } = await supabase.from("workstreams").update({ status }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/proyectos");
+  revalidatePath("/timeline");
+  revalidatePath(`/workstreams/${id}`);
+}
+
 export async function updateWorkstream(formData: FormData) {
   const supabase = await assertWrite();
   const id = String(formData.get("id") ?? "");

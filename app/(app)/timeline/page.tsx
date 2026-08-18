@@ -1,8 +1,9 @@
-import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { addWeeks, mondayOf, toISODate, weekRange } from "@/lib/dates";
 import { TimelineGrid, type TimelineRow, type TimelineTask } from "@/components/TimelineGrid";
+import { FilterChips } from "@/components/ui/FilterChips";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function TimelinePage({
   searchParams,
@@ -13,18 +14,19 @@ export default async function TimelinePage({
   const { start, status } = await searchParams;
   const startMonday = start ?? toISODate(addWeeks(mondayOf(new Date()), -4));
   const weeks = weekRange(startMonday, 12);
+  const thisWeek = toISODate(mondayOf(new Date()));
   const supabase = await createClient();
 
-  let wsQuery = supabase
+  const wsQuery = supabase
     .from("workstreams")
     .select(
-      "id, name, status, start_on, end_on, projects(code, clients(name)), assignments(roles(name), people(display_name))",
+      "id, name, status, start_on, end_on, projects(code, clients(name)), assignments(roles(name), people(display_name, hidden))",
     )
     .in("status", status ? [status] : ["en_curso", "pausado", "mantenimiento"])
     .order("name");
   const { data: workstreams } = await wsQuery;
 
-  const { data: tasks } = await supabase.from("tasks").select("id, name, color").order("name");
+  const { data: tasks } = await supabase.from("tasks").select("id, name, color").is("deleted_at", null).order("name");
   const { data: weekRows } = await supabase
     .from("timeline_weeks")
     .select("id, workstream_id, week_start, timeline_week_tasks(task_id, tasks(id, name, color))")
@@ -32,11 +34,12 @@ export default async function TimelinePage({
 
   const tasksByWs: Record<string, Record<string, TimelineTask[]>> = {};
   for (const row of weekRows ?? []) {
-    const list =
-      (row.timeline_week_tasks ?? []).map((twt) => {
+    const list = (row.timeline_week_tasks ?? [])
+      .map((twt) => {
         const t = twt.tasks as TimelineTask | TimelineTask[] | null;
         return Array.isArray(t) ? t[0] : t;
-      }).filter(Boolean) as TimelineTask[];
+      })
+      .filter(Boolean) as TimelineTask[];
     tasksByWs[row.workstream_id] ??= {};
     tasksByWs[row.workstream_id][row.week_start] = list;
   }
@@ -53,7 +56,12 @@ export default async function TimelinePage({
       .filter((a) => {
         const role = a.roles as { name: string } | { name: string }[] | null;
         const name = Array.isArray(role) ? role[0]?.name : role?.name;
-        return name === "PM";
+        const person = a.people as
+          | { display_name: string; hidden?: boolean }
+          | { display_name: string; hidden?: boolean }[]
+          | null;
+        const personRow = Array.isArray(person) ? person[0] : person;
+        return name === "PM" && !personRow?.hidden;
       })
       .map((a) => {
         const person = a.people as { display_name: string } | { display_name: string }[] | null;
@@ -78,42 +86,39 @@ export default async function TimelinePage({
   const statusQuery = status ? `&status=${status}` : "";
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Timeline</h1>
-          <p className="text-sm text-stone-600">Multiselect de tareas por semana. Las fechas se derivan solas.</p>
-        </div>
-        <div className="flex gap-2 text-sm">
-          <Link href={`/timeline?start=${prev}${statusQuery}`} className="rounded border border-stone-200 bg-white px-3 py-1">
-            Semanas anteriores
-          </Link>
-          <Link href={`/timeline?start=${next}${statusQuery}`} className="rounded border border-stone-200 bg-white px-3 py-1">
-            Semanas siguientes
-          </Link>
-        </div>
-      </div>
-      <div className="flex gap-2 text-sm">
-        {[
-          ["", "Activos"],
-          ["en_curso", "En curso"],
-          ["pausado", "Pausado"],
-          ["mantenimiento", "Mantenimiento"],
-        ].map(([value, label]) => (
-          <Link
-            key={value}
-            href={`/timeline?start=${startMonday}${value ? `&status=${value}` : ""}`}
-            className={`rounded px-3 py-1 ${(!status && !value) || status === value ? "bg-stone-900 text-white" : "border border-stone-200 bg-white"}`}
-          >
-            {label}
-          </Link>
-        ))}
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Timeline"
+        description="Multiselect de tareas por semana. Las fechas se derivan solas."
+      />
+      <FilterChips
+        items={[
+          { href: `/timeline?start=${startMonday}`, label: "Activos", active: !status },
+          {
+            href: `/timeline?start=${startMonday}&status=en_curso`,
+            label: "En curso",
+            active: status === "en_curso",
+          },
+          {
+            href: `/timeline?start=${startMonday}&status=pausado`,
+            label: "Pausado",
+            active: status === "pausado",
+          },
+          {
+            href: `/timeline?start=${startMonday}&status=mantenimiento`,
+            label: "Mantenimiento",
+            active: status === "mantenimiento",
+          },
+        ]}
+      />
       <TimelineGrid
         weeks={weeks}
         rows={rows}
         tasks={(tasks ?? []) as TimelineTask[]}
         canWrite={session.canWrite}
+        thisWeek={thisWeek}
+        prevHref={`/timeline?start=${prev}${statusQuery}`}
+        nextHref={`/timeline?start=${next}${statusQuery}`}
       />
     </div>
   );

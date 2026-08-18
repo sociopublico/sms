@@ -1,18 +1,72 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fafaf9;
-  --foreground: #1c1917;
+  --ink: #16222f;
+  --navy: #26394e;
+  --muted: #6d8094;
+  --cyan: #0092c8;
+  --blue: #4099f7;
+  --green: #5bc89c;
+  --canvas: #f3f6fa;
+  --line: #dfe4ea;
+  --paper: #ffffff;
+  --background: var(--canvas);
+  --foreground: var(--navy);
+  --danger: #e24b4b;
+  --nav-h: 4rem;
+  --brand-gradient: linear-gradient(175deg, #5bc89c 30%, #4099f7 80%);
 }
 
 @theme inline {
+  --color-ink: var(--ink);
+  --color-navy: var(--navy);
+  --color-muted: var(--muted);
+  --color-cyan: var(--cyan);
+  --color-blue: var(--blue);
+  --color-green: var(--green);
+  --color-canvas: var(--canvas);
+  --color-line: var(--line);
+  --color-paper: var(--paper);
+  --color-danger: var(--danger);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-work-sans);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+a {
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+.brand-gradient {
+  background-image: var(--brand-gradient);
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-track {
+  animation: marquee linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
 }

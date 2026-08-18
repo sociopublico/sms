@@ -8,7 +8,7 @@ export default async function ProtectedLayout({
 }) {
   const session = await requireSession();
   return (
-    <AppShell email={session.email} canWrite={session.canWrite}>
+    <AppShell email={session.email} canWrite={session.canWrite} isAdmin={session.isAdmin}>
       {children}
     </AppShell>
   );

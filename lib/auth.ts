@@ -8,6 +8,7 @@ export type SessionProfile = {
   email: string | null;
   appRole: AppRole;
   canWrite: boolean;
+  isAdmin: boolean;
 };
 
 export async function getSessionProfile(): Promise<SessionProfile | null> {
@@ -28,11 +29,18 @@ export async function getSessionProfile(): Promise<SessionProfile | null> {
     email: typeof claims.email === "string" ? claims.email : null,
     appRole,
     canWrite: appRole === "admin" || appRole === "pm",
+    isAdmin: appRole === "admin",
   };
 }
 
 export async function requireSession() {
   const profile = await getSessionProfile();
   if (!profile) redirect("/login");
+  return profile;
+}
+
+export async function requireAdmin() {
+  const profile = await requireSession();
+  if (!profile.isAdmin) redirect("/timeline");
   return profile;
 }
