@@ -183,6 +183,4 @@ export async function setWeekTasks(workstreamId: string, weekStart: string, task
       .insert(taskIds.map((task_id) => ({ timeline_week_id: weekId, task_id })));
     if (error) throw new Error(error.message);
   }
-  revalidatePath("/timeline");
-  revalidatePath("/carga");
 }

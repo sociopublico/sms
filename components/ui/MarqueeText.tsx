@@ -46,7 +46,7 @@ export function MarqueeText({
   );
 
   const content = href ? (
-    <Link href={href} className={className}>
+    <Link href={href} prefetch={false} className={className}>
       {inner}
     </Link>
   ) : (

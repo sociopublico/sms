@@ -39,23 +39,40 @@ export function TimelineGrid({
   const [open, setOpen] = useState<{ ws: string; week: string } | null>(null);
   const [selected, setSelected] = useState<{ ws: string; week: string } | null>(null);
   const [copied, setCopied] = useState<{ ws: string; week: string } | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [overrides, setOverrides] = useState<Record<string, TimelineTask[]>>({});
+  const [, startTransition] = useTransition();
   const clipRef = useRef<string[]>([]);
   const selectedRef = useRef(selected);
   const rowsRef = useRef(rows);
+  const weeksRef = useRef(weeks);
+  const overridesRef = useRef(overrides);
   selectedRef.current = selected;
   rowsRef.current = rows;
+  weeksRef.current = weeks;
+  overridesRef.current = overrides;
+
+  function cellKey(wsId: string, week: string) {
+    return `${wsId}:${week}`;
+  }
 
   function cellTasks(wsId: string, week: string) {
-    return rowsRef.current.find((row) => row.id === wsId)?.tasksByWeek[week] ?? [];
+    return overridesRef.current[cellKey(wsId, week)] ?? rowsRef.current.find((row) => row.id === wsId)?.tasksByWeek[week] ?? [];
+  }
+
+  function saveCell(wsId: string, week: string, ids: string[]) {
+    const nextTasks = ids
+      .map((id) => tasks.find((task) => task.id === id))
+      .filter(Boolean) as TimelineTask[];
+    setOverrides((prev) => ({ ...prev, [cellKey(wsId, week)]: nextTasks }));
+    startTransition(() => {
+      void setWeekTasks(wsId, week, ids);
+    });
   }
 
   function toggle(wsId: string, week: string, current: TimelineTask[], taskId: string) {
     const ids = current.map((t) => t.id);
     const next = ids.includes(taskId) ? ids.filter((id) => id !== taskId) : [...ids, taskId];
-    startTransition(async () => {
-      await setWeekTasks(wsId, week, next);
-    });
+    saveCell(wsId, week, next);
   }
 
   function copySelected() {
@@ -74,24 +91,56 @@ export function TimelineGrid({
   function pasteSelected() {
     const cell = selectedRef.current;
     if (!cell || !canWrite) return;
-    startTransition(async () => {
-      let ids = clipRef.current;
-      try {
-        const text = (await navigator.clipboard.readText()).trim();
-        if (text) {
-          const fromNames = text
-            .split(/[,;\n]+/)
-            .map((name) => name.trim())
-            .filter(Boolean)
-            .map((name) => tasks.find((task) => task.name.toLowerCase() === name.toLowerCase())?.id)
-            .filter(Boolean) as string[];
-          if (fromNames.length || text.length === 0) ids = fromNames;
+    let ids = clipRef.current;
+    void navigator.clipboard
+      .readText()
+      .then((raw) => {
+        const text = raw.trim();
+        if (!text) {
+          saveCell(cell.ws, cell.week, ids);
+          return;
         }
-      } catch {
-        /* keep in-memory clip */
-      }
-      await setWeekTasks(cell.ws, cell.week, ids);
+        const fromNames = text
+          .split(/[,;\n]+/)
+          .map((name) => name.trim())
+          .filter(Boolean)
+          .map((name) => tasks.find((task) => task.name.toLowerCase() === name.toLowerCase())?.id)
+          .filter(Boolean) as string[];
+        saveCell(cell.ws, cell.week, fromNames.length ? fromNames : ids);
+      })
+      .catch(() => {
+        saveCell(cell.ws, cell.week, ids);
+      });
+  }
+
+  function focusCell(ws: string, week: string) {
+    const next = { ws, week };
+    selectedRef.current = next;
+    setSelected(next);
+    setOpen(null);
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>(`[data-tl-cell="${ws}::${week}"]`)?.focus();
     });
+  }
+
+  function moveSelected(dRow: number, dCol: number) {
+    const cell = selectedRef.current;
+    const rowList = rowsRef.current;
+    const weekList = weeksRef.current;
+    if (!cell || !rowList.length || !weekList.length) return;
+    const r = rowList.findIndex((row) => row.id === cell.ws);
+    const c = weekList.indexOf(cell.week);
+    if (r < 0 || c < 0) return;
+    const nextR = Math.max(0, Math.min(rowList.length - 1, r + dRow));
+    const nextC = Math.max(0, Math.min(weekList.length - 1, c + dCol));
+    focusCell(rowList[nextR].id, weekList[nextC]);
+  }
+
+  function clearSelected(moveLeft: boolean) {
+    const cell = selectedRef.current;
+    if (!cell || !canWrite) return;
+    saveCell(cell.ws, cell.week, []);
+    if (moveLeft) moveSelected(0, -1);
   }
 
   useEffect(() => {
@@ -102,27 +151,64 @@ export function TimelineGrid({
     }
 
     function onKey(event: KeyboardEvent) {
+      if (typingInField()) return;
       if (event.key === "Escape") {
         setOpen(null);
         return;
       }
+
       const copyPaste = (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
-      if (!copyPaste || typingInField()) return;
-      if (event.key === "c" || event.key === "C") {
-        if (!selectedRef.current) return;
-        event.preventDefault();
-        copySelected();
+      if (copyPaste) {
+        if (event.key === "c" || event.key === "C") {
+          if (!selectedRef.current) return;
+          event.preventDefault();
+          copySelected();
+        }
+        if ((event.key === "v" || event.key === "V") && canWrite) {
+          if (!selectedRef.current) return;
+          event.preventDefault();
+          pasteSelected();
+        }
+        return;
       }
-      if ((event.key === "v" || event.key === "V") && canWrite && !pending) {
-        if (!selectedRef.current) return;
+
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (!selectedRef.current) return;
+
+      if (event.key === "Delete" && canWrite) {
         event.preventDefault();
-        pasteSelected();
+        clearSelected(false);
+        return;
+      }
+      if (event.key === "Backspace" && canWrite) {
+        event.preventDefault();
+        clearSelected(true);
+        return;
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        moveSelected(0, -1);
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        moveSelected(0, 1);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        moveSelected(-1, 0);
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        moveSelected(1, 0);
       }
     }
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [canWrite, pending, tasks]);
+  }, [canWrite, tasks]);
 
   return (
     <div className="w-full">
@@ -176,7 +262,7 @@ export function TimelineGrid({
               <td className="truncate px-2 text-navy">{row.pms.join(", ") || "—"}</td>
               <td />
               {weeks.map((week) => {
-                const cellTasks = row.tasksByWeek[week] ?? [];
+                const cellTasks = overrides[cellKey(row.id, week)] ?? row.tasksByWeek[week] ?? [];
                 const isOpen = open?.ws === row.id && open.week === week;
                 const current = week === thisWeek;
                 return (
@@ -186,12 +272,13 @@ export function TimelineGrid({
                   >
                     <button
                       type="button"
-                      disabled={!canWrite || pending}
+                      data-tl-cell={`${row.id}::${week}`}
                       onClick={() => {
                         setSelected({ ws: row.id, week });
+                        if (!canWrite) return;
                         setOpen(isOpen ? null : { ws: row.id, week });
                       }}
-                      className={`flex min-h-10 w-full min-w-0 flex-col gap-0.5 rounded-lg border px-1 py-1 pb-3 text-left ${
+                      className={`flex min-h-10 w-full min-w-0 flex-col gap-0.5 rounded-lg border px-1 py-1 pb-3 text-left focus:outline-none ${
                         isOpen || (selected?.ws === row.id && selected.week === week)
                           ? copied?.ws === row.id && copied.week === week
                             ? "border-dashed border-cyan"
