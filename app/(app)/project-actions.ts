@@ -6,11 +6,43 @@ import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { addWeeks, mondayOf, toISODate } from "@/lib/dates";
 import { formPayload, withAudit } from "@/lib/audit";
+import { parseOptionalHttpUrl } from "@/lib/urls";
+
+const INTERNAL_CLIENT_NAME = "Interno";
 
 async function assertWrite() {
   const session = await requireSession();
   if (!session.canWrite) throw new Error("No tenés permiso para editar.");
   return createClient();
+}
+
+type DbClient = Awaited<ReturnType<typeof createClient>>;
+
+async function findOrCreateClient(supabase: DbClient, name: string) {
+  const { data: existing } = await supabase.from("clients").select("id").eq("name", name).maybeSingle();
+  if (existing) return existing.id;
+  const { data, error } = await supabase.from("clients").insert({ name }).select("id").single();
+  if (error) throw new Error(error.message);
+  return data.id;
+}
+
+function parseProjectKind(formData: FormData) {
+  const kind = String(formData.get("kind") ?? "");
+  if (kind !== "client" && kind !== "internal") throw new Error("El tipo de proyecto es obligatorio.");
+  return kind;
+}
+
+function parseFichaUrl(formData: FormData) {
+  return parseOptionalHttpUrl(String(formData.get("ficha_url") ?? ""), "La URL de ficha");
+}
+
+async function resolveClientId(supabase: DbClient, formData: FormData, kind: string) {
+  if (kind === "internal") return findOrCreateClient(supabase, INTERNAL_CLIENT_NAME);
+  const clientId = String(formData.get("client_id") ?? "");
+  const newName = String(formData.get("new_client_name") ?? "").trim();
+  if (clientId && clientId !== "__new__") return clientId;
+  if (!newName) throw new Error("El cliente es obligatorio.");
+  return findOrCreateClient(supabase, newName);
 }
 
 export async function createProjectAndWorkstream(formData: FormData) {
@@ -19,35 +51,18 @@ export async function createProjectAndWorkstream(formData: FormData) {
     async () => {
       const supabase = await assertWrite();
       const existingProjectId = String(formData.get("existing_project_id") ?? "");
-      const clientName = String(formData.get("client_name") ?? "").trim();
       const code = String(formData.get("code") ?? "").trim();
-      const fichaUrl = String(formData.get("ficha_url") ?? "").trim() || null;
-      const kind = String(formData.get("kind") ?? "client") as "client" | "internal";
       const wsName = String(formData.get("workstream_name") ?? "").trim();
       const status = String(formData.get("status") ?? "en_curso");
       if (!wsName) throw new Error("El workstream es obligatorio.");
 
       let projectId = existingProjectId;
       if (!projectId) {
-        if (!clientName) throw new Error("El cliente es obligatorio si no hay proyecto.");
-        let clientId: string;
-        const { data: existingClient } = await supabase
-          .from("clients")
-          .select("id")
-          .eq("name", clientName)
-          .maybeSingle();
-        if (existingClient) {
-          clientId = existingClient.id;
-        } else {
-          const { data, error } = await supabase
-            .from("clients")
-            .insert({ name: clientName })
-            .select("id")
-            .single();
-          if (error) throw new Error(error.message);
-          clientId = data.id;
-        }
-
+        const kind = parseProjectKind(formData);
+        const fichaUrl = parseFichaUrl(formData);
+        const clientId = await resolveClientId(supabase, formData, kind);
+        const { data: client } = await supabase.from("clients").select("name").eq("id", clientId).maybeSingle();
+        const clientName = client?.name ?? "cliente";
         const generatedCode =
           code || `SIN-FICHA-${clientName}-${wsName}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
         const { data: project, error } = await supabase
@@ -98,18 +113,22 @@ export async function updateProject(formData: FormData) {
     async () => {
       const supabase = await assertWrite();
       const id = String(formData.get("id") ?? "");
+      const kind = parseProjectKind(formData);
+      const clientId = await resolveClientId(supabase, formData, kind);
       const { error } = await supabase
         .from("projects")
         .update({
+          client_id: clientId,
           code: String(formData.get("code") ?? "").trim(),
-          ficha_url: String(formData.get("ficha_url") ?? "").trim() || null,
-          kind: String(formData.get("kind") ?? "client"),
+          ficha_url: parseFichaUrl(formData),
+          kind,
           status: String(formData.get("status") ?? "en_curso"),
         })
         .eq("id", id);
       if (error) throw new Error(error.message);
       revalidatePath("/proyectos");
       revalidatePath(`/proyectos/${id}`);
+      revalidatePath("/timeline");
     },
     formPayload(formData),
     { type: "project", id: String(formData.get("id") ?? "") },

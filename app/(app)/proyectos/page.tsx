@@ -1,13 +1,9 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth";
-import { updateProjectStatus, updateWorkstreamStatus } from "../project-actions";
+import { ProjectList } from "@/components/ProjectList";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { FichaMissing, missingFicha } from "@/components/ui/FichaMissing";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { StatusSelect } from "@/components/ui/StatusSelect";
 
 export default async function ProjectsPage({
   searchParams,
@@ -47,46 +43,21 @@ export default async function ProjectsPage({
           },
         ]}
       />
-      <div className="space-y-3">
-        {(projects ?? []).map((project) => {
+      <ProjectList
+        canWrite={session.canWrite}
+        projects={(projects ?? []).map((project) => {
           const client = project.clients as { name: string } | { name: string }[] | null;
           const clientName = Array.isArray(client) ? client[0]?.name : client?.name;
-          return (
-            <Card key={project.id} className="p-5">
-              <div className="flex items-baseline justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <Link href={`/proyectos/${project.id}`} className="font-medium text-ink hover:text-cyan">
-                    {project.code}
-                  </Link>
-                  {missingFicha(project.ficha_url, project.code) ? (
-                    <FichaMissing href={`/proyectos/${project.id}`} />
-                  ) : null}
-                </div>
-                <StatusSelect
-                  value={project.status}
-                  canWrite={session.canWrite}
-                  onChange={updateProjectStatus.bind(null, project.id)}
-                />
-              </div>
-              <p className="mt-1 text-sm text-muted">{clientName}</p>
-              <ul className="mt-3 space-y-1.5 text-sm">
-                {(project.workstreams ?? []).map((ws) => (
-                  <li key={ws.id} className="flex flex-wrap items-center gap-2">
-                    <Link href={`/workstreams/${ws.id}`} className="hover:text-cyan">
-                      {ws.name}
-                    </Link>
-                    <StatusSelect
-                      value={ws.status}
-                      canWrite={session.canWrite}
-                      onChange={updateWorkstreamStatus.bind(null, ws.id)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          );
+          return {
+            id: project.id,
+            code: project.code,
+            ficha_url: project.ficha_url,
+            status: project.status,
+            clientName: clientName ?? "",
+            workstreams: project.workstreams ?? [],
+          };
         })}
-      </div>
+      />
     </div>
   );
 }

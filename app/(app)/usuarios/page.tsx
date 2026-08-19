@@ -1,18 +1,21 @@
 import { requireAdmin } from "@/lib/auth";
+import { socioLocalPart } from "@/lib/emails";
 import { createClient } from "@/lib/supabase/server";
-import { addEditor } from "../user-actions";
+import { addUser } from "../user-actions";
 import { UserRoleCell } from "./UserRoleCell";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, fieldControlClass } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
-import type { RoleValue } from "@/components/ui/RoleSelect";
+import { SocioEmailField } from "@/components/ui/SocioEmailField";
+import { ROLE_LABEL, type RoleValue } from "@/components/ui/RoleSelect";
 
 export default async function UsersPage() {
   const session = await requireAdmin();
   const supabase = await createClient();
-  const [{ data: profiles }, { data: editorRows }, { data: adminRows }] = await Promise.all([
+  const [{ data: profiles }, { data: invited }, { data: editorRows }, { data: adminRows }] = await Promise.all([
     supabase.from("profiles").select("email, app_role").order("email"),
+    supabase.from("app_emails").select("email, app_role").order("email"),
     supabase.from("editor_emails").select("email").order("email"),
     supabase.from("admin_emails").select("email").order("email"),
   ]);
@@ -23,6 +26,9 @@ export default async function UsersPage() {
   }
   for (const row of adminRows ?? []) {
     byEmail.set(row.email.toLowerCase(), "admin");
+  }
+  for (const row of invited ?? []) {
+    byEmail.set(row.email.toLowerCase(), (row.app_role as RoleValue) ?? "member");
   }
   for (const profile of profiles ?? []) {
     if (!profile.email) continue;
@@ -40,20 +46,23 @@ export default async function UsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Usuarios"
-        description="Lector ve. Editor carga timelines y catálogo. Admin también gestiona permisos y el log."
+        description="Cualquier cuenta @sociopublico.com entra como Lector. Acá podés sumar a alguien con el permiso que elijas, o cambiarlo después."
       />
-      <Card className="p-5">
-        <form action={addEditor} className="flex flex-wrap items-end gap-3">
-          <Field label="Invitar editor" className="min-w-72">
-            <input
-              name="email"
-              type="email"
-              required
-              placeholder="nombre@sociopublico.com"
-              className={fieldControlClass}
-            />
+      <Card className="p-6">
+        <form action={addUser} className="space-y-4">
+          <Field label="Mail">
+            <SocioEmailField />
           </Field>
-          <Button type="submit">Agregar</Button>
+          <Field label="Permiso">
+            <select name="role" defaultValue="member" className={fieldControlClass}>
+              <option value="member">{ROLE_LABEL.member}</option>
+              <option value="pm">{ROLE_LABEL.pm}</option>
+              <option value="admin">{ROLE_LABEL.admin}</option>
+            </select>
+          </Field>
+          <Button type="submit" variant="primary">
+            Agregar
+          </Button>
         </form>
       </Card>
       <Card className="overflow-hidden">
@@ -67,7 +76,10 @@ export default async function UsersPage() {
           <tbody>
             {rows.map((row) => (
               <tr key={row.email} className="border-b border-line last:border-0">
-                <td className="px-4 py-3 font-medium text-ink">{row.email}</td>
+                <td className="px-4 py-3 font-medium text-ink">
+                  {socioLocalPart(row.email)}
+                  <span className="font-normal text-muted">@sociopublico.com</span>
+                </td>
                 <td className="px-4 py-3">
                   <UserRoleCell
                     email={row.email}

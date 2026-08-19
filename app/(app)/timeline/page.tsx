@@ -1,30 +1,29 @@
+import { Suspense } from "react";
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { addWeeks, mondayOf, toISODate, weekRange } from "@/lib/dates";
 import { TimelineGrid, type TimelineRow, type TimelineTask } from "@/components/TimelineGrid";
-import { FilterChips } from "@/components/ui/FilterChips";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function TimelinePage({
   searchParams,
 }: {
-  searchParams: Promise<{ start?: string; status?: string }>;
+  searchParams: Promise<{ start?: string }>;
 }) {
   const session = await requireSession();
-  const { start, status } = await searchParams;
+  const { start } = await searchParams;
   const startMonday = start ?? toISODate(addWeeks(mondayOf(new Date()), -4));
   const weeks = weekRange(startMonday, 12);
   const thisWeek = toISODate(mondayOf(new Date()));
   const supabase = await createClient();
 
-  const wsQuery = supabase
+  const { data: workstreams } = await supabase
     .from("workstreams")
     .select(
-      "id, name, status, start_on, end_on, projects(code, clients(name)), assignments(roles(name), people(display_name, hidden))",
+      "id, name, status, start_on, end_on, projects(id, code, status, kind, clients(name)), assignments(roles(name), people(display_name, hidden))",
     )
-    .in("status", status ? [status] : ["en_curso", "pausado", "mantenimiento"])
+    .in("status", ["en_curso", "pausado", "mantenimiento"])
     .order("name");
-  const { data: workstreams } = await wsQuery;
 
   const { data: tasks } = await supabase.from("tasks").select("id, name, color").is("deleted_at", null).order("name");
   const { data: weekRows } = await supabase
@@ -46,8 +45,20 @@ export default async function TimelinePage({
 
   const rows: TimelineRow[] = (workstreams ?? []).map((ws) => {
     const project = ws.projects as
-      | { code: string; clients: { name: string } | { name: string }[] }
-      | { code: string; clients: { name: string } | { name: string }[] }[]
+      | {
+          id: string;
+          code: string;
+          status: string;
+          kind: string;
+          clients: { name: string } | { name: string }[];
+        }
+      | {
+          id: string;
+          code: string;
+          status: string;
+          kind: string;
+          clients: { name: string } | { name: string }[];
+        }[]
       | null;
     const proj = Array.isArray(project) ? project[0] : project;
     const clientRel = proj?.clients;
@@ -74,52 +85,27 @@ export default async function TimelinePage({
       status: ws.status,
       start_on: ws.start_on,
       end_on: ws.end_on,
-      projectCode: proj?.code ?? "",
       clientName: clientName ?? "",
+      projectId: proj?.id ?? ws.id,
+      projectCode: proj?.code ?? "",
+      projectStatus: proj?.status ?? ws.status,
       pms,
       tasksByWeek: tasksByWs[ws.id] ?? {},
     };
   });
 
-  const prev = toISODate(addWeeks(new Date(`${startMonday}T00:00:00Z`), -8));
-  const next = toISODate(addWeeks(new Date(`${startMonday}T00:00:00Z`), 8));
-  const statusQuery = status ? `&status=${status}` : "";
-
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Timeline"
-        description="Multiselect de tareas por semana. Las fechas se derivan solas."
-      />
-      <FilterChips
-        items={[
-          { href: `/timeline?start=${startMonday}`, label: "Activos", active: !status },
-          {
-            href: `/timeline?start=${startMonday}&status=en_curso`,
-            label: "En curso",
-            active: status === "en_curso",
-          },
-          {
-            href: `/timeline?start=${startMonday}&status=pausado`,
-            label: "Pausado",
-            active: status === "pausado",
-          },
-          {
-            href: `/timeline?start=${startMonday}&status=mantenimiento`,
-            label: "Mantenimiento",
-            active: status === "mantenimiento",
-          },
-        ]}
-      />
-      <TimelineGrid
-        weeks={weeks}
-        rows={rows}
-        tasks={(tasks ?? []) as TimelineTask[]}
-        canWrite={session.canWrite}
-        thisWeek={thisWeek}
-        prevHref={`/timeline?start=${prev}${statusQuery}`}
-        nextHref={`/timeline?start=${next}${statusQuery}`}
-      />
+    <div className="space-y-3">
+      <PageHeader title="Timeline" />
+      <Suspense fallback={null}>
+        <TimelineGrid
+          weeks={weeks}
+          rows={rows}
+          tasks={(tasks ?? []) as TimelineTask[]}
+          canWrite={session.canWrite}
+          thisWeek={thisWeek}
+        />
+      </Suspense>
     </div>
   );
 }

@@ -1,5 +1,11 @@
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import {
+  collectAuditIds,
+  formatAuditPayload,
+  formatLogWhen,
+  type AuditLookups,
+} from "@/lib/audit-format";
 import { AuditDetail } from "./AuditDetail";
 import { Card } from "@/components/ui/Card";
 import { FilterChips } from "@/components/ui/FilterChips";
@@ -10,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 const ACTION_LABEL: Record<string, string> = {
   "page.view": "Vio página",
   "users.set_role": "Cambió permiso",
+  "users.add_user": "Sumó usuario",
   "users.add_editor": "Invitó editor",
   "catalog.upsert_person": "Guardó persona",
   "catalog.set_person_hidden": "Ocultó/mostró persona",
@@ -27,11 +34,31 @@ const ACTION_LABEL: Record<string, string> = {
   "timeline.set_week_tasks": "Editó timeline",
 };
 
+const TABLE_LABEL: Record<string, string> = {
+  timeline_week_tasks: "tarea del timeline",
+  timeline_weeks: "semana del timeline",
+  assignments: "asignación",
+  workstreams: "workstream",
+  projects: "proyecto",
+  clients: "cliente",
+  people: "persona",
+  roles: "rol",
+  tasks: "tarea",
+  profiles: "usuario",
+  editor_emails: "editor",
+  admin_emails: "admin",
+  app_emails: "usuario",
+  person_roles: "rol de persona",
+  task_roles: "rol de tarea",
+};
+
 function actionLabel(action: string) {
   if (ACTION_LABEL[action]) return ACTION_LABEL[action];
-  if (action.startsWith("db.insert.")) return `DB insertó ${action.slice("db.insert.".length)}`;
-  if (action.startsWith("db.update.")) return `DB actualizó ${action.slice("db.update.".length)}`;
-  if (action.startsWith("db.delete.")) return `DB borró ${action.slice("db.delete.".length)}`;
+  const match = action.match(/^db\.(insert|update|delete)\.(.+)$/);
+  if (match) {
+    const verb = match[1] === "insert" ? "Agregó" : match[1] === "update" ? "Actualizó" : "Borró";
+    return `${verb} ${TABLE_LABEL[match[2]] ?? match[2]}`;
+  }
   return action;
 }
 
@@ -40,6 +67,70 @@ function roleLabel(role: string | null) {
   if (role === "pm") return "Editor";
   if (role === "member") return "Lector";
   return role ?? "—";
+}
+
+async function loadLookups(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  payloads: unknown[],
+): Promise<AuditLookups> {
+  const ids = collectAuditIds(payloads);
+  const empty: AuditLookups = {
+    tasks: {},
+    people: {},
+    roles: {},
+    clients: {},
+    projects: {},
+    workstreams: {},
+    weeks: {},
+  };
+  const [tasks, people, roles, clients, projects, workstreams, weeks] = await Promise.all([
+    ids.tasks.size
+      ? supabase.from("tasks").select("id, name").in("id", [...ids.tasks])
+      : Promise.resolve({ data: [] }),
+    ids.people.size
+      ? supabase.from("people").select("id, display_name").in("id", [...ids.people])
+      : Promise.resolve({ data: [] }),
+    ids.roles.size
+      ? supabase.from("roles").select("id, name").in("id", [...ids.roles])
+      : Promise.resolve({ data: [] }),
+    ids.clients.size
+      ? supabase.from("clients").select("id, name").in("id", [...ids.clients])
+      : Promise.resolve({ data: [] }),
+    ids.projects.size
+      ? supabase.from("projects").select("id, code").in("id", [...ids.projects])
+      : Promise.resolve({ data: [] }),
+    ids.workstreams.size
+      ? supabase.from("workstreams").select("id, name").in("id", [...ids.workstreams])
+      : Promise.resolve({ data: [] }),
+    ids.weeks.size
+      ? supabase
+          .from("timeline_weeks")
+          .select("id, week_start, workstreams(name, projects(code))")
+          .in("id", [...ids.weeks])
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  for (const row of tasks.data ?? []) empty.tasks[row.id] = row.name;
+  for (const row of people.data ?? []) empty.people[row.id] = row.display_name;
+  for (const row of roles.data ?? []) empty.roles[row.id] = row.name;
+  for (const row of clients.data ?? []) empty.clients[row.id] = row.name;
+  for (const row of projects.data ?? []) empty.projects[row.id] = row.code;
+  for (const row of workstreams.data ?? []) empty.workstreams[row.id] = row.name;
+  for (const row of weeks.data ?? []) {
+    const ws = row.workstreams as
+      | { name: string; projects: { code: string } | { code: string }[] }
+      | { name: string; projects: { code: string } | { code: string }[] }[]
+      | null;
+    const workstream = Array.isArray(ws) ? ws[0] : ws;
+    const project = workstream?.projects;
+    const projectCode = Array.isArray(project) ? project[0]?.code : project?.code;
+    empty.weeks[row.id] = {
+      start: row.week_start,
+      workstream: workstream?.name,
+      project: projectCode,
+    };
+  }
+  return empty;
 }
 
 export default async function LogPage({
@@ -66,6 +157,7 @@ export default async function LogPage({
 
   const { data: events, error } = await query;
   if (error) throw new Error(error.message);
+  const lookups = await loadLookups(supabase, (events ?? []).map((event) => event.payload));
 
   const qs = (next: Record<string, string | undefined>) => {
     const params = new URLSearchParams();
@@ -78,7 +170,7 @@ export default async function LogPage({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-[1080px] space-y-6">
       <PageHeader
         title="Log"
         description="Cada visita y cada cambio queda acá. Solo lo ven los admin."
@@ -114,15 +206,15 @@ export default async function LogPage({
           </Button>
         </form>
       </Card>
-      <Card className="overflow-hidden">
-        <table className="w-full text-sm">
+      <Card>
+        <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-line text-left text-muted">
-              <th className="px-4 py-3 font-medium">Cuando</th>
-              <th className="px-4 py-3 font-medium">Quién</th>
-              <th className="px-4 py-3 font-medium">Acción</th>
-              <th className="px-4 py-3 font-medium">Recurso</th>
-              <th className="px-4 py-3 font-medium">Detalle</th>
+            <tr className="text-left text-muted">
+              <th className="sticky top-16 z-20 border-b border-line bg-paper px-4 py-2.5 font-medium">Cuando</th>
+              <th className="sticky top-16 z-20 border-b border-line bg-paper px-4 py-2.5 font-medium">Quién</th>
+              <th className="sticky top-16 z-20 border-b border-line bg-paper px-4 py-2.5 font-medium">Acción</th>
+              <th className="sticky top-16 z-20 border-b border-line bg-paper px-4 py-2.5 font-medium">Recurso</th>
+              <th className="sticky top-16 z-20 border-b border-line bg-paper px-4 py-2.5 font-medium">Detalle</th>
             </tr>
           </thead>
           <tbody>
@@ -135,9 +227,7 @@ export default async function LogPage({
             ) : (
               (events ?? []).map((event) => (
                 <tr key={event.id} className="border-b border-line last:border-0">
-                  <td className="whitespace-nowrap px-4 py-3 text-navy">
-                    {new Date(event.at).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}
-                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-navy">{formatLogWhen(event.at)}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium text-ink">{event.actor_email ?? "—"}</div>
                     <div className="text-muted">{roleLabel(event.actor_role)}</div>
@@ -147,11 +237,10 @@ export default async function LogPage({
                     {event.path ? <div className="text-muted">{event.path}</div> : null}
                   </td>
                   <td className="px-4 py-3 text-muted">
-                    {event.resource_type ?? "—"}
-                    {event.resource_id ? <div className="truncate font-mono text-xs">{event.resource_id}</div> : null}
+                    {TABLE_LABEL[event.resource_type ?? ""] ?? event.resource_type ?? "—"}
                   </td>
                   <td className="px-4 py-3">
-                    <AuditDetail payload={event.payload} error={event.error} />
+                    <AuditDetail fields={formatAuditPayload(event.payload, lookups)} error={event.error} />
                   </td>
                 </tr>
               ))

@@ -7,6 +7,7 @@
   --cyan: #0092c8;
   --blue: #4099f7;
   --green: #5bc89c;
+  --orange: #e8893a;
   --canvas: #f3f6fa;
   --line: #dfe4ea;
   --paper: #ffffff;
@@ -24,6 +25,7 @@
   --color-cyan: var(--cyan);
   --color-blue: var(--blue);
   --color-green: var(--green);
+  --color-orange: var(--orange);
   --color-canvas: var(--canvas);
   --color-line: var(--line);
   --color-paper: var(--paper);

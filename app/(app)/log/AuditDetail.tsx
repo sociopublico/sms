@@ -1,19 +1,21 @@
-"use client";
+import type { AuditField } from "@/lib/audit-format";
 
-import { useState } from "react";
-
-export function AuditDetail({ payload, error }: { payload: unknown; error: string | null }) {
-  const [open, setOpen] = useState(false);
+export function AuditDetail({ fields, error }: { fields: AuditField[]; error: string | null }) {
+  if (!fields.length && !error) {
+    return <span className="text-muted">—</span>;
+  }
   return (
-    <div>
-      <button type="button" onClick={() => setOpen((v) => !v)} className="text-cyan hover:underline">
-        {open ? "Ocultar" : "Ver detalle"}
-      </button>
-      {open ? (
-        <pre className="mt-2 max-h-80 overflow-auto rounded-xl bg-canvas p-3 text-xs text-navy">
-          {error ? `Error: ${error}\n\n` : ""}
-          {JSON.stringify(payload ?? {}, null, 2)}
-        </pre>
+    <div className="space-y-1">
+      {error ? <p className="text-sm text-danger">Error: {error}</p> : null}
+      {fields.length ? (
+        <dl className="space-y-0.5">
+          {fields.map((field) => (
+            <div key={`${field.label}-${field.value}`} className="flex flex-wrap gap-x-2">
+              <dt className="text-muted">{field.label}</dt>
+              <dd className="text-navy">{field.value}</dd>
+            </div>
+          ))}
+        </dl>
       ) : null}
     </div>
   );

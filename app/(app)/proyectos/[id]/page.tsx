@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { updateProject, updateProjectStatus, updateWorkstreamStatus } from "../../project-actions";
+import { ProjectFields } from "@/components/ProjectFields";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, fieldControlClass } from "@/components/ui/Field";
@@ -18,17 +19,20 @@ export default async function ProjectDetailPage({
   const session = await requireSession();
   const { id } = await params;
   const supabase = await createClient();
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id, code, ficha_url, kind, status, clients(name), workstreams(id, name, status, start_on, end_on)")
-    .eq("id", id)
-    .maybeSingle();
+  const [{ data: project }, { data: clients }] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("id, code, ficha_url, kind, status, client_id, clients(name), workstreams(id, name, status, start_on, end_on)")
+      .eq("id", id)
+      .maybeSingle(),
+    supabase.from("clients").select("id, name").order("name"),
+  ]);
   if (!project) notFound();
   const client = project.clients as { name: string } | { name: string }[] | null;
   const clientName = Array.isArray(client) ? client[0]?.name : client?.name;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-xl space-y-6">
       <PageHeader
         kicker={clientName}
         title={project.code}
@@ -44,21 +48,17 @@ export default async function ProjectDetailPage({
         }
       />
       {session.canWrite ? (
-        <Card className="p-5">
-          <form action={updateProject} className="grid gap-4 md:grid-cols-2">
+        <Card className="p-6">
+          <form action={updateProject} className="space-y-4">
             <input type="hidden" name="id" value={project.id} />
-            <Field label="ID">
-              <input name="code" defaultValue={project.code} className={fieldControlClass} />
-            </Field>
-            <Field label="Ficha">
-              <input name="ficha_url" defaultValue={project.ficha_url ?? ""} className={fieldControlClass} />
-            </Field>
-            <Field label="Tipo">
-              <select name="kind" defaultValue={project.kind} className={fieldControlClass}>
-                <option value="client">Cliente</option>
-                <option value="internal">Interno</option>
-              </select>
-            </Field>
+            <ProjectFields
+              clients={clients ?? []}
+              defaultKind={project.kind}
+              defaultClientId={project.client_id}
+              defaultCode={project.code}
+              defaultFichaUrl={project.ficha_url ?? ""}
+              codeRequired
+            />
             <Field label="Estado">
               <select name="status" defaultValue={project.status} className={fieldControlClass}>
                 <option value="en_curso">En curso</option>
@@ -67,9 +67,9 @@ export default async function ProjectDetailPage({
                 <option value="finalizado">Finalizado</option>
               </select>
             </Field>
-            <div className="md:col-span-2">
-              <Button type="submit">Guardar contrato</Button>
-            </div>
+            <Button type="submit" variant="primary">
+              Guardar
+            </Button>
           </form>
         </Card>
       ) : (

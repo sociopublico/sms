@@ -1,11 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { STATUS_LABEL } from "@/lib/dates";
 import { addAssignment, removeAssignment, updateWorkstream, updateWorkstreamStatus } from "../../project-actions";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { fieldControlClass } from "@/components/ui/Field";
+import { Field, fieldControlClass } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusSelect } from "@/components/ui/StatusSelect";
 
@@ -38,11 +38,11 @@ export default async function WorkstreamPage({
   const clientName = Array.isArray(clientRel) ? clientRel[0]?.name : clientRel?.name;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-xl space-y-6">
       <PageHeader
-        kicker={`${clientName} · ${proj?.code}`}
+        kicker={clientName}
         title={ws.name}
-        description={`${STATUS_LABEL[ws.status]} · ${ws.start_on ?? "sin inicio"} → ${ws.end_on ?? "sin fin"}`}
+        description={proj?.code}
         actions={
           <StatusSelect
             value={ws.status}
@@ -53,70 +53,93 @@ export default async function WorkstreamPage({
       />
 
       {session.canWrite ? (
-        <Card className="p-5">
-          <form action={updateWorkstream} className="flex flex-wrap items-end gap-3">
+        <Card className="p-6">
+          <form action={updateWorkstream} className="space-y-4">
             <input type="hidden" name="id" value={ws.id} />
-            <input name="name" defaultValue={ws.name} className={`${fieldControlClass} w-auto min-w-56`} />
-            <select name="status" defaultValue={ws.status} className={`${fieldControlClass} w-auto`}>
-              <option value="en_curso">En curso</option>
-              <option value="pausado">Pausado</option>
-              <option value="mantenimiento">Mantenimiento</option>
-              <option value="finalizado">Finalizado</option>
-            </select>
-            <Button type="submit">Guardar</Button>
+            <Field label="Workstream">
+              <input name="name" defaultValue={ws.name} required className={fieldControlClass} />
+            </Field>
+            <Field label="Estado">
+              <select name="status" defaultValue={ws.status} className={fieldControlClass}>
+                <option value="en_curso">En curso</option>
+                <option value="pausado">Pausado</option>
+                <option value="mantenimiento">Mantenimiento</option>
+                <option value="finalizado">Finalizado</option>
+              </select>
+            </Field>
+            <Button type="submit" variant="primary">
+              Guardar
+            </Button>
           </form>
         </Card>
-      ) : null}
+      ) : (
+        <p className="text-sm text-muted">
+          {ws.start_on ?? "Sin inicio"} → {ws.end_on ?? "Sin fin"}
+        </p>
+      )}
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium text-ink">Equipo</h2>
-        <p className="text-sm text-muted">Varias personas por rol, sin columnas duplicadas.</p>
-        <Card>
-          <ul className="divide-y divide-line">
-            {(ws.assignments ?? []).map((asg) => {
-              const person = asg.people as { display_name: string } | { display_name: string }[] | null;
-              const role = asg.roles as { name: string } | { name: string }[] | null;
-              const personName = Array.isArray(person) ? person[0]?.display_name : person?.display_name;
-              const roleName = Array.isArray(role) ? role[0]?.name : role?.name;
-              return (
-                <li key={asg.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                  <span>
-                    <span className="font-medium text-ink">{personName}</span>
-                    <span className="text-muted"> · {roleName}</span>
-                  </span>
+      <section>
+        <h2 className="mb-3 text-lg font-medium text-ink">Equipo</h2>
+        <ul className="space-y-2">
+          {(ws.assignments ?? []).map((asg) => {
+            const person = asg.people as { display_name: string } | { display_name: string }[] | null;
+            const role = asg.roles as { name: string } | { name: string }[] | null;
+            const personName = Array.isArray(person) ? person[0]?.display_name : person?.display_name;
+            const roleName = Array.isArray(role) ? role[0]?.name : role?.name;
+            return (
+              <li key={asg.id}>
+                <Card className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                  <span className="font-medium text-ink">{personName}</span>
+                  <span className="text-muted">{roleName}</span>
                   {session.canWrite ? (
-                    <form action={removeAssignment.bind(null, asg.id, ws.id)}>
+                    <form action={removeAssignment.bind(null, asg.id, ws.id)} className="ml-auto">
                       <button className="text-sm text-navy hover:text-cyan">Quitar</button>
                     </form>
                   ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
         {session.canWrite ? (
-          <form action={addAssignment} className="flex flex-wrap gap-2">
-            <input type="hidden" name="workstream_id" value={ws.id} />
-            <select name="person_id" required className={`${fieldControlClass} w-auto min-w-44`}>
-              <option value="">Persona</option>
-              {(people ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.display_name}
-                </option>
-              ))}
-            </select>
-            <select name="role_id" required className={`${fieldControlClass} w-auto min-w-36`}>
-              <option value="">Rol</option>
-              {(roles ?? []).map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-            <Button type="submit">Asignar</Button>
-          </form>
+          <Card className="mt-4 p-6">
+            <form action={addAssignment} className="space-y-4">
+              <input type="hidden" name="workstream_id" value={ws.id} />
+              <Field label="Persona">
+                <select name="person_id" required className={fieldControlClass}>
+                  <option value="">Elegir persona</option>
+                  {(people ?? []).map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {person.display_name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Rol">
+                <select name="role_id" required className={fieldControlClass}>
+                  <option value="">Elegir rol</option>
+                  {(roles ?? []).map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Button type="submit" variant="primary">
+                Asignar
+              </Button>
+            </form>
+          </Card>
         ) : null}
       </section>
+
+      {proj?.id ? (
+        <p className="text-sm text-muted">
+          <Link href={`/proyectos/${proj.id}`} className="hover:text-cyan">
+            Volver al proyecto
+          </Link>
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -10,7 +10,7 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
         {kicker ? <p className="text-sm text-muted">{kicker}</p> : null}
         <h1 className="text-[1.75rem] font-medium leading-tight tracking-tight text-ink">{title}</h1>

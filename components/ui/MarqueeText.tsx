@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 export function MarqueeText({
   text,
@@ -14,53 +14,61 @@ export function MarqueeText({
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLSpanElement>(null);
-  const [shift, setShift] = useState(0);
+  const [overflow, setOverflow] = useState(0);
+  const [hover, setHover] = useState(false);
 
-  function onEnter() {
+  useLayoutEffect(() => {
     const wrap = wrapRef.current;
-    const source = sourceRef.current;
-    if (!wrap || !source) return;
-    setShift(Math.max(0, source.scrollWidth - wrap.clientWidth));
-  }
+    if (!wrap) return;
+    const measure = () => {
+      const source = sourceRef.current;
+      if (!source) return;
+      setOverflow(Math.max(0, source.scrollWidth - wrap.clientWidth));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [text, className]);
 
-  const duration = Math.max(3.5, shift / 32);
-  const inner =
-    shift > 0 ? (
-      <span
-        className="marquee-track inline-flex w-max whitespace-nowrap"
-        style={{ animationDuration: `${duration}s` }}
-      >
-        <span className="pr-10">{text}</span>
-        <span className="pr-10" aria-hidden>
-          {text}
-        </span>
+  const running = hover && overflow > 0;
+  const duration = Math.max(3.5, overflow / 32);
+  const inner = running ? (
+    <span
+      className="marquee-track inline-flex w-max whitespace-nowrap"
+      style={{ animationDuration: `${duration}s` }}
+    >
+      <span className="pr-10">{text}</span>
+      <span className="pr-10" aria-hidden>
+        {text}
       </span>
-    ) : (
-      <span className="block truncate">{text}</span>
-    );
-
-  const measure = (
-    <span ref={sourceRef} className="invisible absolute left-0 top-0 whitespace-nowrap" aria-hidden>
-      {text}
     </span>
+  ) : (
+    <span className="block truncate">{text}</span>
   );
 
   const content = href ? (
-    <Link href={href} prefetch={false} className={className}>
+    <Link href={href} prefetch={false} className={`block min-w-0 overflow-hidden ${className}`.trim()}>
       {inner}
     </Link>
   ) : (
-    <span className={className}>{inner}</span>
+    <span className={`block min-w-0 overflow-hidden ${className}`.trim()}>{inner}</span>
   );
 
   return (
     <div
       ref={wrapRef}
-      className="relative overflow-hidden"
-      onMouseEnter={onEnter}
-      onMouseLeave={() => setShift(0)}
+      className="relative min-w-0 w-full max-w-full overflow-hidden"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
     >
-      {measure}
+      <span
+        ref={sourceRef}
+        className={`pointer-events-none invisible absolute left-0 top-0 whitespace-nowrap ${className}`}
+        aria-hidden
+      >
+        {text}
+      </span>
       {content}
     </div>
   );

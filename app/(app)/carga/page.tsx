@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { addWeeks, mondayOf, toISODate, weekRange } from "@/lib/dates";
@@ -16,9 +17,7 @@ export default async function CargaPage({
   const weeks = weekRange(startMonday, 12);
   const thisWeek = toISODate(mondayOf(new Date()));
   const nextWeek = toISODate(addWeeks(mondayOf(new Date()), 1));
-  const prev = toISODate(addWeeks(new Date(`${startMonday}T00:00:00Z`), -8));
-  const next = toISODate(addWeeks(new Date(`${startMonday}T00:00:00Z`), 8));
-  const roleQuery = role ? `&role=${role}` : "";
+  const weekQuery = [...new Set([...weeks, thisWeek, nextWeek])];
 
   const supabase = await createClient();
   const [{ data: people }, { data: cells }, { data: details }, { data: roles }] = await Promise.all([
@@ -28,7 +27,7 @@ export default async function CargaPage({
       .is("deleted_at", null)
       .eq("hidden", false)
       .order("display_name"),
-    supabase.from("person_week_load").select("person_id, week_start, load_count").in("week_start", weeks),
+    supabase.from("person_week_load").select("person_id, week_start, load_count").in("week_start", weekQuery),
     supabase
       .from("person_week_load_detail")
       .select("person_id, week_start, project_code, workstream_name, task_name, role_name")
@@ -47,36 +46,36 @@ export default async function CargaPage({
   const nextWeekLoad = new Set(
     (cells ?? []).filter((c) => c.week_start === nextWeek && c.load_count > 0).map((c) => c.person_id),
   );
-  const zeroNextWeekIds = filtered
-    .filter((p) => thisWeekLoad.has(p.id) && !nextWeekLoad.has(p.id))
-    .map((p) => p.id);
+  const cyanDotIds = filtered.filter((p) => thisWeekLoad.has(p.id) && !nextWeekLoad.has(p.id)).map((p) => p.id);
+  const orangeDotIds = filtered.filter((p) => !thisWeekLoad.has(p.id) && !nextWeekLoad.has(p.id)).map((p) => p.id);
+
+  const roleChips = [
+    { href: `/carga?start=${startMonday}`, label: "Todos", active: !role },
+    ...(roles ?? []).map((r) => ({
+      href: `/carga?start=${startMonday}&role=${r.id}`,
+      label: r.name,
+      active: role === r.id,
+    })),
+  ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <PageHeader
         title="Workload"
         description="Número de workstreams activos por persona y semana. PM y Supervisión cuentan si hay cualquier tarea."
+        actions={<FilterChips size="sm" items={roleChips} />}
       />
-      <FilterChips
-        items={[
-          { href: `/carga?start=${startMonday}`, label: "Todos", active: !role },
-          ...(roles ?? []).map((r) => ({
-            href: `/carga?start=${startMonday}&role=${r.id}`,
-            label: r.name,
-            active: role === r.id,
-          })),
-        ]}
-      />
-      <LoadHeatmap
-        people={filtered}
-        weeks={weeks}
-        cells={cells ?? []}
-        details={details ?? []}
-        zeroNextWeekIds={zeroNextWeekIds}
-        thisWeek={thisWeek}
-        prevHref={`/carga?start=${prev}${roleQuery}`}
-        nextHref={`/carga?start=${next}${roleQuery}`}
-      />
+      <Suspense fallback={null}>
+        <LoadHeatmap
+          people={filtered}
+          weeks={weeks}
+          cells={cells ?? []}
+          details={details ?? []}
+          cyanDotIds={cyanDotIds}
+          orangeDotIds={orangeDotIds}
+          thisWeek={thisWeek}
+        />
+      </Suspense>
     </div>
   );
 }
