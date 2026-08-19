@@ -1,34 +1,45 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, type AppRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-
-const ADMINS = ["agustina@sociopublico.com", "alejandra@sociopublico.com"];
+import { formPayload, withAudit } from "@/lib/audit";
 
 function normalizeEmail(raw: string) {
   return raw.trim().toLowerCase();
 }
 
 export async function addEditor(formData: FormData) {
-  await requireAdmin();
-  const supabase = await createClient();
-  const email = normalizeEmail(String(formData.get("email") ?? ""));
-  if (!email.endsWith("@sociopublico.com")) {
-    throw new Error("Solo se permiten cuentas @sociopublico.com.");
-  }
-  if (ADMINS.includes(email)) {
-    throw new Error("Esa cuenta ya es admin.");
-  }
-  const { error } = await supabase.rpc("add_editor", { p_email: email });
-  if (error) throw new Error(error.message);
-  revalidatePath("/usuarios");
+  return withAudit(
+    "users.add_editor",
+    async () => {
+      await requireAdmin();
+      const supabase = await createClient();
+      const email = normalizeEmail(String(formData.get("email") ?? ""));
+      if (!email.endsWith("@sociopublico.com")) {
+        throw new Error("Solo se permiten cuentas @sociopublico.com.");
+      }
+      const { error } = await supabase.rpc("add_editor", { p_email: email });
+      if (error) throw new Error(error.message);
+      revalidatePath("/usuarios");
+    },
+    formPayload(formData),
+    { type: "user", id: normalizeEmail(String(formData.get("email") ?? "")) },
+  );
 }
 
-export async function removeEditor(email: string) {
-  await requireAdmin();
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("remove_editor", { p_email: normalizeEmail(email) });
-  if (error) throw new Error(error.message);
-  revalidatePath("/usuarios");
+export async function setUserRole(email: string, role: AppRole) {
+  return withAudit(
+    "users.set_role",
+    async () => {
+      await requireAdmin();
+      const supabase = await createClient();
+      const normalized = normalizeEmail(email);
+      const { error } = await supabase.rpc("set_app_role", { p_email: normalized, p_role: role });
+      if (error) throw new Error(error.message);
+      revalidatePath("/usuarios");
+    },
+    { email, role },
+    { type: "user", id: normalizeEmail(email) },
+  );
 }

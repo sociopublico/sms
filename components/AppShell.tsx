@@ -56,7 +56,9 @@ export function AppShell({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const catalog = isAdmin ? [...CATALOG, { href: "/usuarios", label: "Usuarios" }] : CATALOG;
+  const catalog = isAdmin
+    ? [...CATALOG, { href: "/usuarios", label: "Usuarios" }, { href: "/log", label: "Log" }]
+    : CATALOG;
 
   async function logout() {
     const supabase = createClient();

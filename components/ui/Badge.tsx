@@ -5,6 +5,9 @@ const STYLES: Record<string, string> = {
   finalizado: "bg-ink text-white",
   edita: "bg-green/15 text-ink",
   lectura: "bg-canvas text-muted",
+  admin: "bg-ink text-white",
+  pm: "bg-green/15 text-ink",
+  member: "bg-canvas text-muted",
   interno: "bg-canvas text-muted",
   cliente: "bg-blue/10 text-navy",
 };

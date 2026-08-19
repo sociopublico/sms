@@ -1,32 +1,32 @@
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { addEditor, removeEditor } from "../user-actions";
+import { addEditor } from "../user-actions";
+import { UserRoleCell } from "./UserRoleCell";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { ConfirmDelete } from "@/components/ui/ConfirmDelete";
 import { Field, fieldControlClass } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
-
-const ADMINS = ["agustina@sociopublico.com", "alejandra@sociopublico.com"];
+import type { RoleValue } from "@/components/ui/RoleSelect";
 
 export default async function UsersPage() {
-  await requireAdmin();
+  const session = await requireAdmin();
   const supabase = await createClient();
-  const [{ data: profiles }, { data: editorRows }] = await Promise.all([
+  const [{ data: profiles }, { data: editorRows }, { data: adminRows }] = await Promise.all([
     supabase.from("profiles").select("email, app_role").order("email"),
     supabase.from("editor_emails").select("email").order("email"),
+    supabase.from("admin_emails").select("email").order("email"),
   ]);
 
-  const byEmail = new Map(
-    (profiles ?? [])
-      .filter((p) => p.email)
-      .map((p) => [p.email!.toLowerCase(), p.app_role as string]),
-  );
+  const byEmail = new Map<string, RoleValue>();
   for (const row of editorRows ?? []) {
-    if (!byEmail.has(row.email)) byEmail.set(row.email, "pm");
+    byEmail.set(row.email.toLowerCase(), "pm");
   }
-  for (const email of ADMINS) {
-    byEmail.set(email, "admin");
+  for (const row of adminRows ?? []) {
+    byEmail.set(row.email.toLowerCase(), "admin");
+  }
+  for (const profile of profiles ?? []) {
+    if (!profile.email) continue;
+    byEmail.set(profile.email.toLowerCase(), (profile.app_role as RoleValue) ?? "member");
   }
 
   const rows = [...byEmail.entries()]
@@ -40,11 +40,11 @@ export default async function UsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Usuarios"
-        description="Agustina y Alejandra administran quién puede editar. El resto del estudio entra en lectura."
+        description="Lector ve. Editor carga timelines y catálogo. Admin también gestiona permisos y el log."
       />
       <Card className="p-5">
         <form action={addEditor} className="flex flex-wrap items-end gap-3">
-          <Field label="Mail de editor" className="min-w-72">
+          <Field label="Invitar editor" className="min-w-72">
             <input
               name="email"
               type="email"
@@ -53,7 +53,7 @@ export default async function UsersPage() {
               className={fieldControlClass}
             />
           </Field>
-          <Button type="submit">Agregar editor</Button>
+          <Button type="submit">Agregar</Button>
         </form>
       </Card>
       <Card className="overflow-hidden">
@@ -62,20 +62,18 @@ export default async function UsersPage() {
             <tr className="border-b border-line text-left text-muted">
               <th className="px-4 py-3 font-medium">Mail</th>
               <th className="px-4 py-3 font-medium">Permiso</th>
-              <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.email} className="border-b border-line last:border-0">
                 <td className="px-4 py-3 font-medium text-ink">{row.email}</td>
-                <td className="px-4 py-3 text-muted">
-                  {row.role === "admin" ? "Admin" : row.role === "pm" ? "Editor" : "Lectura"}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  {row.role === "pm" ? (
-                    <ConfirmDelete label={row.email} action={removeEditor.bind(null, row.email)} />
-                  ) : null}
+                <td className="px-4 py-3">
+                  <UserRoleCell
+                    email={row.email}
+                    role={row.role}
+                    locked={row.email === session.email?.toLowerCase()}
+                  />
                 </td>
               </tr>
             ))}
