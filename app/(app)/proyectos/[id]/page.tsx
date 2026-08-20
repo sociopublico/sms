@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { updateProject, updateProjectStatus, updateWorkstreamStatus } from "../../project-actions";
 import { ProjectFields } from "@/components/ProjectFields";
+import { ProjectHoursAliases } from "@/components/ProjectHoursAliases";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, fieldControlClass } from "@/components/ui/Field";
@@ -19,17 +20,48 @@ export default async function ProjectDetailPage({
   const session = await requireSession();
   const { id } = await params;
   const supabase = await createClient();
-  const [{ data: project }, { data: clients }] = await Promise.all([
-    supabase
-      .from("projects")
-      .select("id, code, ficha_url, kind, status, client_id, clients(name), workstreams(id, name, status, start_on, end_on)")
-      .eq("id", id)
-      .maybeSingle(),
-    supabase.from("clients").select("id, name").order("name"),
-  ]);
+  const [{ data: project }, { data: clients }, { data: aliases }, { data: unmatchedRows }] =
+    await Promise.all([
+      supabase
+        .from("projects")
+        .select(
+          "id, code, ficha_url, kind, status, client_id, clients(name), workstreams(id, name, status, start_on, end_on)",
+        )
+        .eq("id", id)
+        .maybeSingle(),
+      supabase.from("clients").select("id, name").order("name"),
+      supabase
+        .from("project_aliases")
+        .select("id, alias, client_hint")
+        .eq("project_id", id)
+        .order("alias"),
+      supabase
+        .from("time_entries")
+        .select("raw_client_label, raw_project_label")
+        .is("project_id", null)
+        .limit(2000),
+    ]);
   if (!project) notFound();
   const client = project.clients as { name: string } | { name: string }[] | null;
   const clientName = Array.isArray(client) ? client[0]?.name : client?.name;
+
+  const unmatchedMap = new Map<
+    string,
+    { rawClientLabel: string; rawProjectLabel: string; entryCount: number }
+  >();
+  for (const row of unmatchedRows ?? []) {
+    const key = `${row.raw_client_label}\0${row.raw_project_label}`;
+    const prev = unmatchedMap.get(key);
+    if (prev) prev.entryCount += 1;
+    else {
+      unmatchedMap.set(key, {
+        rawClientLabel: row.raw_client_label,
+        rawProjectLabel: row.raw_project_label,
+        entryCount: 1,
+      });
+    }
+  }
+  const unmatched = [...unmatchedMap.values()];
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -75,6 +107,18 @@ export default async function ProjectDetailPage({
       ) : (
         <p className="text-sm text-muted">{project.ficha_url || "Sin ficha"}</p>
       )}
+
+      <ProjectHoursAliases
+        projectId={project.id}
+        canWrite={session.canWrite}
+        aliases={(aliases ?? []).map((row) => ({
+          id: row.id,
+          alias: row.alias,
+          clientHint: row.client_hint,
+        }))}
+        unmatched={unmatched}
+      />
+
       <section>
         <h2 className="mb-3 text-lg font-medium text-ink">Workstreams</h2>
         <ul className="space-y-2">

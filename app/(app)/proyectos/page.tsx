@@ -18,7 +18,14 @@ export default async function ProjectsPage({
     .select("id, code, ficha_url, kind, status, clients(name), workstreams(id, name, status)")
     .order("code");
   if (status) query = query.eq("status", status);
-  const { data: projects } = await query;
+  const [{ data: projects }, { data: aliasRows }] = await Promise.all([
+    query,
+    supabase.from("project_aliases").select("project_id").not("project_id", "is", null),
+  ]);
+
+  const projectsWithAlias = new Set(
+    (aliasRows ?? []).map((row) => row.project_id).filter((id): id is string => Boolean(id)),
+  );
 
   return (
     <div className="space-y-6">
@@ -54,6 +61,7 @@ export default async function ProjectsPage({
             ficha_url: project.ficha_url,
             status: project.status,
             clientName: clientName ?? "",
+            hasHoursAlias: projectsWithAlias.has(project.id),
             workstreams: project.workstreams ?? [],
           };
         })}

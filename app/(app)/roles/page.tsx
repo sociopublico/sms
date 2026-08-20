@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requireWriter } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { archiveRole, upsertRole } from "../catalog-actions";
 import { Badge } from "@/components/ui/Badge";
@@ -9,7 +9,7 @@ import { Field, fieldControlClass } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function RolesPage() {
-  const session = await requireSession();
+  const session = await requireWriter();
   const supabase = await createClient();
   const { data: roles } = await supabase.from("roles").select("*").is("deleted_at", null).order("name");
 

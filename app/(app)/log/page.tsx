@@ -32,6 +32,8 @@ const ACTION_LABEL: Record<string, string> = {
   "workstreams.add_assignment": "Asignó persona",
   "workstreams.remove_assignment": "Quitó asignación",
   "timeline.set_week_tasks": "Editó timeline",
+  "drive.connect": "Conectó Google Drive",
+  "drive.disconnect": "Desconectó Google Drive",
 };
 
 const TABLE_LABEL: Record<string, string> = {

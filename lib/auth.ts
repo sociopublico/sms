@@ -44,3 +44,9 @@ export async function requireAdmin() {
   if (!profile.isAdmin) redirect("/timeline");
   return profile;
 }
+
+export async function requireWriter() {
+  const profile = await requireSession();
+  if (!profile.canWrite) redirect("/timeline");
+  return profile;
+}

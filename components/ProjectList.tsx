@@ -5,7 +5,7 @@ import Link from "next/link";
 import { updateProjectStatus, updateWorkstreamStatus } from "@/app/(app)/project-actions";
 import { AngleIcon } from "@/components/ui/AngleIcon";
 import { Card } from "@/components/ui/Card";
-import { FichaMissing, missingFicha } from "@/components/ui/FichaMissing";
+import { missingFicha } from "@/components/ui/FichaMissing";
 import { StatusSelect } from "@/components/ui/StatusSelect";
 
 export type ProjectListItem = {
@@ -14,6 +14,7 @@ export type ProjectListItem = {
   ficha_url: string | null;
   status: string;
   clientName: string;
+  hasHoursAlias: boolean;
   workstreams: { id: string; name: string; status: string }[];
 };
 
@@ -29,6 +30,26 @@ function loadExpanded(): Set<string> {
   } catch {
     return new Set();
   }
+}
+
+function MetaPill({
+  ok,
+  okLabel,
+  missingLabel,
+}: {
+  ok: boolean;
+  okLabel: string;
+  missingLabel: string;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+        ok ? "bg-green/15 text-ink" : "bg-danger/10 text-danger"
+      }`}
+    >
+      {ok ? okLabel : missingLabel}
+    </span>
+  );
 }
 
 export function ProjectList({
@@ -55,7 +76,11 @@ export function ProjectList({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-        <button type="button" className="text-cyan hover:underline" onClick={() => persist(new Set(projects.map((project) => project.id)))}>
+        <button
+          type="button"
+          className="text-cyan hover:underline"
+          onClick={() => persist(new Set(projects.map((project) => project.id)))}
+        >
           Abrir todos
         </button>
         <span className="text-line">·</span>
@@ -66,6 +91,7 @@ export function ProjectList({
       {projects.map((project) => {
         const open = expanded.has(project.id);
         const count = project.workstreams.length;
+        const hasFicha = !missingFicha(project.ficha_url, project.code);
         return (
           <Card key={project.id} className="p-5">
             <div className="flex items-start justify-between gap-4">
@@ -80,13 +106,16 @@ export function ProjectList({
                   <AngleIcon direction={open ? "down" : "right"} />
                 </button>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Link href={`/proyectos/${project.id}`} className="font-medium text-ink hover:text-cyan">
                       {project.code}
                     </Link>
-                    {missingFicha(project.ficha_url, project.code) ? (
-                      <FichaMissing href={`/proyectos/${project.id}`} />
-                    ) : null}
+                    <MetaPill ok={hasFicha} okLabel="Con ficha" missingLabel="Sin ficha" />
+                    <MetaPill
+                      ok={project.hasHoursAlias}
+                      okLabel="Con label horas"
+                      missingLabel="Sin label horas"
+                    />
                   </div>
                   <button type="button" onClick={() => toggle(project.id)} className="mt-1 block text-left">
                     <p className="text-sm text-muted">{project.clientName}</p>

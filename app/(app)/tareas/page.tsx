@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requireWriter } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { archiveTask, upsertTask } from "../catalog-actions";
 import { Button } from "@/components/ui/Button";
@@ -9,7 +9,7 @@ import { Field, fieldControlClass } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function TasksPage() {
-  const session = await requireSession();
+  const session = await requireWriter();
   const supabase = await createClient();
   const [{ data: tasks }, { data: roles }] = await Promise.all([
     supabase
