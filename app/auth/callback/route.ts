@@ -30,9 +30,18 @@ export async function GET(request: Request) {
     maxAge: 0,
   };
 
+  const oauthError = searchParams.get("error");
+  const oauthDescription = searchParams.get("error_description");
+  const oauthCode = searchParams.get("error_code");
+  let exchangeError: string | null = null;
+
   if (code) {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      exchangeError = error.message;
+      console.error("auth callback exchange failed", error.message);
+    }
     if (!error) {
       const wantsDrive =
         next.startsWith("/horas/sync") || next.startsWith("/integraciones/drive");
@@ -76,7 +85,20 @@ export async function GET(request: Request) {
     }
   }
 
-  const response = NextResponse.redirect(`${origin}/login?error=auth`);
+  console.error("auth callback failed", {
+    missingCode: !code,
+    oauthError,
+    oauthCode,
+    oauthDescription,
+    exchangeError,
+  });
+
+  const login = new URL(`${origin}/login`);
+  login.searchParams.set("error", "auth");
+  const description = oauthDescription ?? exchangeError;
+  if (description) login.searchParams.set("error_description", description);
+  if (oauthCode) login.searchParams.set("error_code", oauthCode);
+  const response = NextResponse.redirect(login);
   response.cookies.set(clearCookie);
   return response;
 }

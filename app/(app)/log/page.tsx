@@ -34,6 +34,7 @@ const ACTION_LABEL: Record<string, string> = {
   "timeline.set_week_tasks": "Editó timeline",
   "drive.connect": "Conectó Google Drive",
   "drive.disconnect": "Desconectó Google Drive",
+  "auth.login_failed": "Falló el login",
 };
 
 const TABLE_LABEL: Record<string, string> = {
