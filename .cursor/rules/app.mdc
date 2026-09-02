@@ -1,0 +1,15 @@
+---
+description: Convenciones de App Router, server actions y UI del SMS
+globs: app/**/*.{ts,tsx},components/**/*.tsx,lib/**/*.ts
+alwaysApply: false
+---
+
+# App SMS
+
+- Server Components por defecto. `"use client"` solo con estado o handlers.
+- Páginas protegidas bajo `app/(app)/`. Login en `app/login`, callback en `app/auth/callback`.
+- Mutaciones: `app/(app)/*-actions.ts` + `withAudit("dominio.accion", ...)`.
+- Permisos: `requireSession` / `requireWriter` / `requireAdmin` (`lib/auth.ts`).
+- Reusá `components/ui/*` (`PageHeader`, `Card`, `Field`, `Button`). Copy en español.
+- `searchParams` y `params` son Promise (Next 16). `cookies()` también.
+- Sesión: `lib/supabase/server.ts` + `proxy.ts`. Host de dev: `localhost:3000`.

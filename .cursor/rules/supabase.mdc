@@ -1,0 +1,15 @@
+---
+description: Cómo tocar Postgres, RLS y triggers de Auth
+globs: supabase/**/*.sql
+alwaysApply: false
+---
+
+# Schema SMS
+
+- Archivos nuevos solo con `npx supabase migration new nombre_snake_case`.
+- RLS en `public`. Lógica privilegiada en `private`, `SECURITY DEFINER`, `SET search_path`.
+- GRANTs explícitos a `authenticated` / `service_role`.
+- Trigger `private.handle_new_user`: variables `v_email` / `v_role`, nunca `email`. Un error ahí = `Database error saving new user` y el usuario no se crea.
+- `audit_row` no debe abortar inserts de signup (ya traga excepciones).
+- Soft delete / `hidden` en catálogos. No hard-delete personas con asignaciones a ciegas.
+- Aplicar a prod: `npx supabase db push --linked --yes`, no esperar a Vercel.
