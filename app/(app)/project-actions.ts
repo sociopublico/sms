@@ -32,8 +32,21 @@ function parseProjectKind(formData: FormData) {
   return kind;
 }
 
-function parseFichaUrl(formData: FormData) {
-  return parseOptionalHttpUrl(String(formData.get("ficha_url") ?? ""), "La URL de ficha");
+function parseOptionalText(formData: FormData, name: string) {
+  const value = String(formData.get(name) ?? "").trim();
+  return value || null;
+}
+
+function parseOptionalDate(formData: FormData, name: string) {
+  const value = String(formData.get(name) ?? "").trim();
+  return value || null;
+}
+
+function parseBillingPoint(formData: FormData) {
+  const value = String(formData.get("billing_point") ?? "").trim();
+  if (!value) return null;
+  if (value !== "spuy" && value !== "spar") throw new Error("El punto de cobro es inválido.");
+  return value;
 }
 
 async function resolveClientId(supabase: DbClient, formData: FormData, kind: string) {
@@ -60,7 +73,7 @@ export async function createProject(formData: FormData) {
     async () => {
       const supabase = await assertWrite();
       const kind = parseProjectKind(formData);
-      const fichaUrl = parseFichaUrl(formData);
+      const fichaUrl = parseOptionalHttpUrl(String(formData.get("ficha_url") ?? ""), "La URL de ficha");
       const status = String(formData.get("status") ?? "en_curso");
       const code = String(formData.get("code") ?? "").trim();
       const clientId = await resolveClientId(supabase, formData, kind);
@@ -138,7 +151,19 @@ export async function updateProject(formData: FormData) {
         .update({
           client_id: clientId,
           code: String(formData.get("code") ?? "").trim(),
-          ficha_url: parseFichaUrl(formData),
+          ficha_url: parseOptionalHttpUrl(String(formData.get("ficha_url") ?? ""), "La URL de ficha"),
+          partner: parseOptionalText(formData, "partner"),
+          contract_signed_on: parseOptionalDate(formData, "contract_signed_on"),
+          proposal_url: parseOptionalHttpUrl(String(formData.get("proposal_url") ?? ""), "El link a la propuesta"),
+          drive_folder_url: parseOptionalHttpUrl(
+            String(formData.get("drive_folder_url") ?? ""),
+            "El link de la carpeta general",
+          ),
+          planned_duration: parseOptionalText(formData, "planned_duration"),
+          kickoff_on: parseOptionalDate(formData, "kickoff_on"),
+          end_on: parseOptionalDate(formData, "end_on"),
+          payment_schedule: parseOptionalText(formData, "payment_schedule"),
+          billing_point: parseBillingPoint(formData),
           kind,
           status: String(formData.get("status") ?? "en_curso"),
         })

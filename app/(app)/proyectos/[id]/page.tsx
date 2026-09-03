@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { updateProject, updateProjectStatus, updateWorkstreamStatus } from "../../project-actions";
 import { AddWorkstreamForm } from "@/components/AddWorkstreamForm";
+import { ProjectContractFields, ProjectContractReadout } from "@/components/ProjectContractFields";
 import { ProjectFields } from "@/components/ProjectFields";
 import { ProjectHoursAliases } from "@/components/ProjectHoursAliases";
 import { Button } from "@/components/ui/Button";
@@ -26,7 +27,7 @@ export default async function ProjectDetailPage({
       supabase
         .from("projects")
         .select(
-          "id, code, ficha_url, kind, status, client_id, clients(name), workstreams(id, name, status, start_on, end_on)",
+          "id, code, ficha_url, kind, status, client_id, partner, contract_signed_on, proposal_url, drive_folder_url, planned_duration, kickoff_on, end_on, payment_schedule, billing_point, clients(name), workstreams(id, name, status, start_on, end_on)",
         )
         .eq("id", id)
         .maybeSingle(),
@@ -63,6 +64,17 @@ export default async function ProjectDetailPage({
     }
   }
   const unmatched = [...unmatchedMap.values()];
+  const contractValues = {
+    partner: project.partner,
+    contract_signed_on: project.contract_signed_on,
+    proposal_url: project.proposal_url,
+    drive_folder_url: project.drive_folder_url,
+    planned_duration: project.planned_duration,
+    kickoff_on: project.kickoff_on,
+    end_on: project.end_on,
+    payment_schedule: project.payment_schedule,
+    billing_point: project.billing_point,
+  };
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -92,6 +104,7 @@ export default async function ProjectDetailPage({
               defaultFichaUrl={project.ficha_url ?? ""}
               codeRequired
             />
+            <ProjectContractFields defaults={contractValues} />
             <Field label="Estado">
               <select name="status" defaultValue={project.status} className={fieldControlClass}>
                 <option value="en_curso">En curso</option>
@@ -106,7 +119,10 @@ export default async function ProjectDetailPage({
           </form>
         </Card>
       ) : (
-        <p className="text-sm text-muted">{project.ficha_url || "Sin ficha"}</p>
+        <Card className="space-y-4 p-6">
+          <p className="text-sm text-muted">{project.ficha_url || "Sin ficha"}</p>
+          <ProjectContractReadout values={contractValues} />
+        </Card>
       )}
 
       <ProjectHoursAliases
