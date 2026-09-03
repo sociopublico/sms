@@ -58,9 +58,14 @@ con los colores, saquemoslo~~
   - ~~que haya una opción "personas", que tenga las opciones personas, workload, tareas, roles~~
   - ~~que haya una opción "admin" que tenga los items: usuarios, logs~~
 
+~~Workstream y project deberian ser cosas distintas~~
+  - ~~En lista de proyectos: Nuevo proyecto → formulario de proyecto. En esta instancia no se crea un workstream~~
+  - ~~En ficha de proyecto: Nuevo workstream → solo nombre, proyecto ya fijado.~~
+  - ~~Alinear el nav con eso (hoy dice “Crear nuevo proyecto” y aterriza en copy de workstream).~~
+  - ~~Me gustaría también que si hay un proyecto que aún no tiene workstream lo marquemos de alguna manera, podemos agregar un cta directo que sea Agregar workstream~~
+
 Pendientes:
 
-- Workstream y project deberian ser cosas distintas
 - La ficha de proyecto y el nomenclador deberían estar en el mismo lugar
 - Que cosas deberian ver las PMs? Que cosas los admins? filtrar un poco ahí, tambien pensar tres tipos de usuarios (solo lectura, pms, admins)
 
