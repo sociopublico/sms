@@ -45,44 +45,65 @@ async function resolveClientId(supabase: DbClient, formData: FormData, kind: str
   return findOrCreateClient(supabase, newName);
 }
 
-export async function createProjectAndWorkstream(formData: FormData) {
+function slugPart(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+export async function createProject(formData: FormData) {
   return withAudit(
-    "projects.create_workstream",
+    "projects.create",
     async () => {
       const supabase = await assertWrite();
-      const existingProjectId = String(formData.get("existing_project_id") ?? "");
-      const code = String(formData.get("code") ?? "").trim();
-      const wsName = String(formData.get("workstream_name") ?? "").trim();
+      const kind = parseProjectKind(formData);
+      const fichaUrl = parseFichaUrl(formData);
       const status = String(formData.get("status") ?? "en_curso");
-      if (!wsName) throw new Error("El workstream es obligatorio.");
+      const code = String(formData.get("code") ?? "").trim();
+      const clientId = await resolveClientId(supabase, formData, kind);
+      const { data: client } = await supabase.from("clients").select("name").eq("id", clientId).maybeSingle();
+      const clientName = client?.name ?? "cliente";
+      const generatedCode =
+        code || `sin-ficha-${slugPart(clientName)}-${Date.now().toString(36)}`;
 
-      let projectId = existingProjectId;
-      if (!projectId) {
-        const kind = parseProjectKind(formData);
-        const fichaUrl = parseFichaUrl(formData);
-        const clientId = await resolveClientId(supabase, formData, kind);
-        const { data: client } = await supabase.from("clients").select("name").eq("id", clientId).maybeSingle();
-        const clientName = client?.name ?? "cliente";
-        const generatedCode =
-          code || `SIN-FICHA-${clientName}-${wsName}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        const { data: project, error } = await supabase
-          .from("projects")
-          .insert({
-            code: generatedCode,
-            client_id: clientId,
-            ficha_url: fichaUrl,
-            kind,
-            status,
-          })
-          .select("id")
-          .single();
-        if (error) throw new Error(error.message);
-        projectId = project.id;
-      }
+      const { data: project, error } = await supabase
+        .from("projects")
+        .insert({
+          code: generatedCode,
+          client_id: clientId,
+          ficha_url: fichaUrl,
+          kind,
+          status,
+        })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+
+      revalidatePath("/proyectos");
+      revalidatePath("/timeline");
+      redirect(`/proyectos/${project.id}`);
+    },
+    formPayload(formData),
+  );
+}
+
+export async function createWorkstream(formData: FormData) {
+  return withAudit(
+    "workstreams.create",
+    async () => {
+      const supabase = await assertWrite();
+      const projectId = String(formData.get("project_id") ?? "").trim();
+      const name = String(formData.get("workstream_name") ?? "").trim();
+      const status = String(formData.get("status") ?? "en_curso");
+      if (!projectId) throw new Error("El proyecto es obligatorio.");
+      if (!name) throw new Error("El workstream es obligatorio.");
 
       const payload: Record<string, unknown> = {
         project_id: projectId,
-        name: wsName,
+        name,
         status,
       };
       if (status === "mantenimiento") {
@@ -91,19 +112,16 @@ export async function createProjectAndWorkstream(formData: FormData) {
         payload.end_on = toISODate(addWeeks(start, 52));
       }
 
-      const { data: ws, error: wsError } = await supabase
-        .from("workstreams")
-        .insert(payload)
-        .select("id")
-        .single();
-      if (wsError) throw new Error(wsError.message);
+      const { data: ws, error } = await supabase.from("workstreams").insert(payload).select("id").single();
+      if (error) throw new Error(error.message);
 
       revalidatePath("/proyectos");
+      revalidatePath(`/proyectos/${projectId}`);
       revalidatePath("/timeline");
       redirect(`/workstreams/${ws.id}`);
     },
     formPayload(formData),
-    { type: "project", id: String(formData.get("existing_project_id") ?? "") || undefined },
+    { type: "project", id: String(formData.get("project_id") ?? "") || undefined },
   );
 }
 

@@ -45,41 +45,7 @@ INSERT INTO public.people (id, display_name) VALUES
   ('292920cf-c842-56c9-997f-939223a5f2b7', 'Dan')
 ON CONFLICT (id) DO NOTHING;
 
--- Alias exactos de carpetas Drive → persona del catálogo.
-INSERT INTO public.drive_person_aliases (folder_name, person_id) VALUES
-  -- Confirmados manualmente
-  ('Arrieta, Dolores', '2ec506a2-8fb0-56a1-84d0-a7cf1691e987'),       -- Loli
-  ('Cecillon, Mariana', 'f34c394c-edc0-50a8-8ab0-3ac8ecfaa8a9'),      -- Maru
-  ('Martínez, Emiliano', 'f733e7e1-cccd-54f0-b864-f512b1322071'),     -- Emi
-  ('Martinez, Emiliano', 'f733e7e1-cccd-54f0-b864-f512b1322071'),     -- Emi (sin tilde)
-  ('Geninatti, German', '4a442037-3e9b-5d40-8af6-83825a6e769a'),      -- Sher
-  ('Paladino, Pablo', '6554fb6b-4f2c-5cf2-b933-c67126ed3f68'),        -- Pala
-  -- Ya matcheaban por apodo; alias fijo para sync
-  ('Constance, Paul', 'a7936332-af42-5ff8-9757-fecdced0228a'),        -- Paul
-  ('Fiszlejder, Michelle', 'b182f98e-bacd-538b-89a9-37df648cdab6'),   -- Mich
-  ('García, Julieta', 'a3a830fe-a794-5567-907e-ec26c4db46a9'),         -- Juli
-  ('Lazarte Otano, Rocío', 'b59e225c-eb60-5a4b-825c-d12866adaa2d'),   -- Ro
-  ('Moran, Marcelo', 'b038712c-00d0-5043-addc-7be9bfe0b946'),         -- Marce
-  ('Nahas, Agustina', 'aa382bbb-fded-5f7a-af55-b9bea04916d9'),        -- Agus
-  ('Romero Barberá, Josefina', '01c4505a-c29e-513e-b2df-2f28e011cf2d'), -- Jose
-  ('Sava, Ayar', 'de80449e-ad93-5d4d-be1a-6955dc4325aa'),             -- Ayar
-  ('Spinosa, Mercedes', '9bfdb291-f0b1-5fa1-b1c9-646d16511974'),      -- Mer
-  ('Wirtz, Joscha', '48d00709-bcf9-528f-bda9-1b841e1f103d'),          -- Joscha
-  ('Sojo, Gloriana', '8160e8cc-8c24-5f0b-90a8-1846033f43f7'),         -- Glori
-  ('Zappe, Macarena', '54bb65b5-e96b-5313-b607-62d6b69f03d5'),        -- Maca
-  -- Solo PDF por ahora: persona en catálogo, sin import de horas
-  ('Arias, Franco', 'ef718e3f-e1b6-5657-a8c0-8f14f83007eb'),
-  ('Di Bartolo, Florencia', '61d298a5-1d44-5c53-9777-67fd65d3e986'),
-  ('Félix, Belén', '21994680-48ca-554c-9cd3-2374e162ddfe'),
-  ('Frers, Victoria', '7e3bb107-2e16-51e0-b183-71a4fbdb32b1'),
-  ('Godoy, Luciana', 'bc05bd6e-8a51-5c4e-8a5d-a4cf2b44a9f4'),
-  ('Lengyel, Miguel', '3df6d4a9-d660-5801-8810-b8d1c8f36afd'),
-  ('Perez León, Erika', '54a6754c-6dad-57ee-a25f-0563a37915e6'),
-  ('Salatino, Ezequiel', 'ac217f57-ef6f-5d23-b5a3-c1b76c058d32'),
-  ('Simhan, Eugenia', 'b120e607-561d-5ed1-b414-8f5decf63b74'),
-  ('Yeyati, Lara', '14e047fd-2625-5fee-8fea-1df6073915a7'),
-  ('Zajdband, Dan', '292920cf-c842-56c9-997f-939223a5f2b7')
-ON CONFLICT (folder_name) DO UPDATE SET person_id = EXCLUDED.person_id;
+-- drive_person_aliases rows live in seed.sql (need people from the spreadsheet snapshot first).
 
 -- Vínculo persona ↔ cuenta (cuando el perfil ya existe).
 UPDATE public.profiles p

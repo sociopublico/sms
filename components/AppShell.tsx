@@ -12,7 +12,7 @@ type NavGroup = { id: string; label: string; items: NavItem[] };
 
 function buildNav({ canWrite, isAdmin }: { canWrite: boolean; isAdmin: boolean }): NavGroup[] {
   const proyectos: NavItem[] = [{ href: "/proyectos", label: "Lista de proyectos" }];
-  if (canWrite) proyectos.push({ href: "/proyectos/nuevo", label: "Crear nuevo proyecto" });
+  if (canWrite) proyectos.push({ href: "/proyectos/nuevo", label: "Nuevo proyecto" });
 
   const personasItems: NavItem[] = [
     { href: "/personas", label: "Personas" },

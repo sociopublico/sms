@@ -31,11 +31,13 @@ export default async function ProjectsPage({
     <div className="space-y-6">
       <PageHeader
         title="Proyectos"
-        description="Contrato (ID) con uno o más workstreams."
+        description="Contrato (ID) con cero o más workstreams."
         actions={
-          <Button href="/proyectos/nuevo" variant="primary">
-            Nuevo workstream
-          </Button>
+          session.canWrite ? (
+            <Button href="/proyectos/nuevo" variant="primary">
+              Nuevo proyecto
+            </Button>
+          ) : null
         }
       />
       <FilterChips

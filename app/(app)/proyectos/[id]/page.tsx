@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { updateProject, updateProjectStatus, updateWorkstreamStatus } from "../../project-actions";
+import { AddWorkstreamForm } from "@/components/AddWorkstreamForm";
 import { ProjectFields } from "@/components/ProjectFields";
 import { ProjectHoursAliases } from "@/components/ProjectHoursAliases";
 import { Button } from "@/components/ui/Button";
@@ -121,6 +122,9 @@ export default async function ProjectDetailPage({
 
       <section>
         <h2 className="mb-3 text-lg font-medium text-ink">Workstreams</h2>
+        {(project.workstreams ?? []).length === 0 ? (
+          <p className="mb-3 text-sm text-danger">Este proyecto todavía no tiene workstreams.</p>
+        ) : null}
         <ul className="space-y-2">
           {(project.workstreams ?? []).map((ws) => (
             <li key={ws.id}>
@@ -140,6 +144,12 @@ export default async function ProjectDetailPage({
             </li>
           ))}
         </ul>
+        {session.canWrite ? (
+          <Card className="mt-4 p-6">
+            <h3 className="mb-3 text-sm font-medium text-ink">Agregar workstream</h3>
+            <AddWorkstreamForm projectId={project.id} />
+          </Card>
+        ) : null}
       </section>
     </div>
   );

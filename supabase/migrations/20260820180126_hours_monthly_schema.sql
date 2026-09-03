@@ -155,22 +155,4 @@ CREATE TRIGGER drive_hours_files_set_updated_at
   BEFORE UPDATE ON public.drive_hours_files
   FOR EACH ROW EXECUTE FUNCTION private.set_updated_at();
 
--- Aliases del Sheet de horas → people existentes (sin crear personas).
-INSERT INTO public.person_name_aliases (alias, person_id) VALUES
-  ('Sherman', '4a442037-3e9b-5d40-8af6-83825a6e769a'),
-  ('Sherman (70 diseño)', '4a442037-3e9b-5d40-8af6-83825a6e769a'),
-  ('Sher (diseño)', '4a442037-3e9b-5d40-8af6-83825a6e769a'),
-  ('Gloriana', '8160e8cc-8c24-5f0b-90a8-1846033f43f7'),
-  ('Lu Godoy', 'bc05bd6e-8a51-5c4e-8a5d-a4cf2b44a9f4'),
-  ('Belu', '21994680-48ca-554c-9cd3-2374e162ddfe'),
-  ('Vic', '7e3bb107-2e16-51e0-b183-71a4fbdb32b1'),
-  ('Rocío', 'b59e225c-eb60-5a4b-825c-d12866adaa2d'),
-  ('Michelle', 'b182f98e-bacd-538b-89a9-37df648cdab6'),
-  ('Emiliano', 'f733e7e1-cccd-54f0-b864-f512b1322071'),
-  ('Leandro', '7191e654-58dc-50ca-980c-b168b1994462'),
-  ('Eze', 'ac217f57-ef6f-5d23-b5a3-c1b76c058d32'),
-  ('Juli (con strapi)', 'a3a830fe-a794-5567-907e-ec26c4db46a9'),
-  ('Agus (con strapi)', 'aa382bbb-fded-5f7a-af55-b9bea04916d9'),
-  ('Paul MEL', 'a7936332-af42-5ff8-9757-fecdced0228a'),
-  ('Paul comms', 'a7936332-af42-5ff8-9757-fecdced0228a')
-ON CONFLICT (alias) DO UPDATE SET person_id = EXCLUDED.person_id;
+-- person_name_aliases rows live in seed.sql (need people from the spreadsheet snapshot first).

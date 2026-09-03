@@ -79,19 +79,20 @@ export function ProjectList({
         <button
           type="button"
           className="text-cyan hover:underline"
-          onClick={() => persist(new Set(projects.map((project) => project.id)))}
+          onClick={() => persist(new Set(projects.map((p) => p.id)))}
         >
-          Abrir todos
+          Expandir todos
         </button>
         <span className="text-line">·</span>
         <button type="button" className="text-cyan hover:underline" onClick={() => persist(new Set())}>
-          Cerrar todos
+          Colapsar todos
         </button>
       </div>
       {projects.map((project) => {
         const open = expanded.has(project.id);
         const count = project.workstreams.length;
         const hasFicha = !missingFicha(project.ficha_url, project.code);
+        const hasWorkstreams = count > 0;
         return (
           <Card key={project.id} className="p-5">
             <div className="flex items-start justify-between gap-4">
@@ -116,14 +117,14 @@ export function ProjectList({
                       okLabel="Con label horas"
                       missingLabel="Sin label horas"
                     />
+                    <MetaPill
+                      ok={hasWorkstreams}
+                      okLabel={`${count} ${count === 1 ? "workstream" : "workstreams"}`}
+                      missingLabel="Sin workstream"
+                    />
                   </div>
                   <button type="button" onClick={() => toggle(project.id)} className="mt-1 block text-left">
                     <p className="text-sm text-muted">{project.clientName}</p>
-                    {open ? null : (
-                      <p className="mt-1 text-sm text-muted">
-                        {count} {count === 1 ? "workstream" : "workstreams"}
-                      </p>
-                    )}
                   </button>
                 </div>
               </div>
@@ -135,18 +136,22 @@ export function ProjectList({
             </div>
             {open ? (
               <ul className="mt-3 ml-6 space-y-1.5 border-l border-line pl-4 text-sm">
-                {project.workstreams.map((ws) => (
-                  <li key={ws.id} className="flex flex-wrap items-center gap-2">
-                    <Link href={`/workstreams/${ws.id}`} className="hover:text-cyan">
-                      {ws.name}
-                    </Link>
-                    <StatusSelect
-                      value={ws.status}
-                      canWrite={canWrite}
-                      onChange={updateWorkstreamStatus.bind(null, ws.id)}
-                    />
-                  </li>
-                ))}
+                {hasWorkstreams ? (
+                  project.workstreams.map((ws) => (
+                    <li key={ws.id} className="flex flex-wrap items-center gap-2">
+                      <Link href={`/workstreams/${ws.id}`} className="hover:text-cyan">
+                        {ws.name}
+                      </Link>
+                      <StatusSelect
+                        value={ws.status}
+                        canWrite={canWrite}
+                        onChange={updateWorkstreamStatus.bind(null, ws.id)}
+                      />
+                    </li>
+                  ))
+                ) : (
+                  <li className="text-muted">Todavía no hay workstreams.</li>
+                )}
               </ul>
             ) : null}
           </Card>
