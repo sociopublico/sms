@@ -64,19 +64,18 @@ con los colores, saquemoslo~~
   - ~~Alinear el nav con eso (hoy dice “Crear nuevo proyecto” y aterriza en copy de workstream).~~
   - ~~Me gustaría también que si hay un proyecto que aún no tiene workstream lo marquemos de alguna manera, podemos agregar un cta directo que sea Agregar workstream~~
 
-~~En la vista cada proyecto~~
+~~En la vista cada proyecto agregar datos de la ficha de KIKE~~
   - ~~modifiquemos primero la DB de los proyectos y luego cambiaremos la UI. Necesito que en los proyectos agreguemos los siguientes datos: Partner, Fecha firma del contrato, Link a la propuesta, carpeta General del proyecto, Duración prevista, Fehca de comienzo (kickoff), Fecha de finalización, Agenda de pagos, Punto de Cobro. Toda la anterior es data que estaba en la ficha de proyecto de Kike~~
+
+~~En la vista de proyectos:~~
+  - ~~Poder tener filtros de tiene ficha proyectos o no y tiene label de horas o no (el label de horas relaciona el nombre que tiene en la hoja de horas o en los csvs con el nombre que tiene en la lista de proyectos!)~~
+  - ~~Creo que no hace falta vistas abrir todos cerrar todos~~
 
 Pendientes:
 
 - La ficha de proyecto y el nomenclador deberían estar en el mismo lugar
 - Que cosas deberian ver las PMs? Que cosas los admins? filtrar un poco ahí, tambien pensar tres tipos de usuarios (solo lectura, pms, admins)
 
-
-
-- En la vista de proyectos:
-  - Poder tener filtros de tiene ficha proyectos o no y tiene label de horas o no (el label de horas relaciona el nombre que tiene en la hoja de horas o en los csvs con el nombre que tiene en la lista de proyectos!)
-  - Creo que no hace falta vistas abrir todos cerrar todos
 - En los workstreams:
   - Deberíamos tener entregables y que las pms puedan configurar fecha estimada y fecha real de entrega, y que en la lista de proyectos aparezcan los entregables y si ya se entregaron o no
     - Re mil a futuro: notificaciones para kike o entregables nuevos o algo asi

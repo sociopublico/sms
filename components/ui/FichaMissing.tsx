@@ -2,7 +2,7 @@ import Link from "next/link";
 import { HoverTip } from "@/components/ui/HoverTip";
 
 export function missingFicha(fichaUrl: string | null | undefined, code?: string | null) {
-  return !fichaUrl || (code?.startsWith("SIN-FICHA-") ?? false);
+  return !fichaUrl || (code?.toUpperCase().startsWith("SIN-FICHA-") ?? false);
 }
 
 export function FichaMissing({ href }: { href?: string }) {

@@ -75,19 +75,6 @@ export function ProjectList({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-        <button
-          type="button"
-          className="text-cyan hover:underline"
-          onClick={() => persist(new Set(projects.map((p) => p.id)))}
-        >
-          Expandir todos
-        </button>
-        <span className="text-line">·</span>
-        <button type="button" className="text-cyan hover:underline" onClick={() => persist(new Set())}>
-          Colapsar todos
-        </button>
-      </div>
       {projects.map((project) => {
         const open = expanded.has(project.id);
         const count = project.workstreams.length;
