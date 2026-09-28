@@ -4,26 +4,26 @@ Cosas que el equipo ya marcó y **no** están hechas. Si vas a agarrar una, conf
 
 ## Producto
 
-- Workstream y proyecto tienen que sentirse más distintos (hoy el alta a veces los mezcla).
 - La ficha de proyecto y el nomenclador (`code`) deberían vivir juntos.
-- Revisar qué ve una PM vs un admin (hoy Editor = casi todo menos usuarios/logs/conectar Drive).
+- Revisar qué ve Staff vs Editor vs Admin (hoy Staff = mismo `can_write` que Editor; UI todavía no diferencia).
 
 ## Proyectos
 
-- Filtros: tiene ficha sí/no, tiene alias de horas sí/no.
-- Fechas de inicio y fin del proyecto (traer de fichas, después al form).
-- Quizá sacar “abrir todos / cerrar todos” si estorba.
+- (Hecho) Filtros: cliente, tiene ficha sí/no, tiene alias de horas sí/no; expandir/colapsar todos removido.
+- (Hecho) Datos de contrato en ficha (partner, fechas, propuesta, carpeta, duración, agenda de pagos, punto de cobro).
+- (Hecho) Campo `name` (nombre del proyecto) antes de tipo en alta/edición; la UI sugiere `code` (`Cliente-Nombre` / `InternoSocio-Nombre`) y se puede editar a mano (proyectos viejos conservan el suyo).
+- (Hecho) `actual_end_on` (fin real) aparte de `end_on` (fin de contrato); labels UI actualizados; al setear contrato se autocompleta el fin real.
+- (Hecho) Recordatorio de retención de archivos a los 90 días de `actual_end_on` (carteles en `/editor`, `/staff`, ficha; tilde hecho/no aplica; tarea en timeline).
 
 ## Workstreams
 
-- Entregables con fecha estimada y fecha real; mostrarlos en la lista de proyectos.
-- A futuro: avisos a Kike cuando hay entregables nuevos.
-- El form de equipo (persona + rol) es incómodo: debería parecerse a una tabla, una persona con varios roles de una.
+- Entregables: schema `deliverables` listo; UI en ficha de workstream (CRUD + archivar). Falta mostrarlos en la lista de proyectos. Avisos a Kike = a futuro.
+- (Hecho) Equipo: tabla persona → roles (varios roles por persona); form de alta colapsado.
 
 ## Timeline
 
 - Marcar inicio/fin pautado del proyecto en la grilla.
-- Marcar fecha estimada de entregables.
+- Marcar fecha de entregables.
 
 ## Horas / Toggl
 

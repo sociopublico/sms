@@ -18,4 +18,4 @@ export function Field({
 }
 
 export const fieldControlClass =
-  "rounded-xl border border-line bg-paper px-3 py-2 text-sm text-navy placeholder:text-muted focus:border-cyan";
+  "rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-cyan scheme-light";

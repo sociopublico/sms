@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { DRIVE_CONNECT_NEXT, DRIVE_OAUTH_SCOPES, DRIVE_ROOT_FOLDER_ID } from "@/lib/drive-constants";
+import { homePathForRole, type AppRole } from "@/lib/auth";
+import { DRIVE_OAUTH_SCOPES, DRIVE_ROOT_FOLDER_ID } from "@/lib/drive-constants";
 
 const OAUTH_NEXT_COOKIE = "sms_oauth_next";
 
-function safeNextPath(raw: string | null | undefined, fallback = "/timeline") {
-  if (!raw) return fallback;
-  if (!raw.startsWith("/") || raw.startsWith("//")) return fallback;
+function safeNextPath(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
   return raw;
 }
 
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
     .map((part) => part.trim())
     .find((part) => part.startsWith(`${OAUTH_NEXT_COOKIE}=`))
     ?.slice(OAUTH_NEXT_COOKIE.length + 1);
-  const next = safeNextPath(
+  const requestedNext = safeNextPath(
     searchParams.get("next") ?? (cookieNext ? decodeURIComponent(cookieNext) : null),
   );
 
@@ -43,16 +44,17 @@ export async function GET(request: Request) {
       console.error("auth callback exchange failed", error.message);
     }
     if (!error) {
+      const userId = data.session?.user.id;
+      const { data: profile } = userId
+        ? await supabase.from("profiles").select("app_role").eq("id", userId).maybeSingle()
+        : { data: null };
+      const appRole = (profile?.app_role as AppRole | undefined) ?? "member";
+      const next = requestedNext ?? homePathForRole(appRole);
+
       const wantsDrive =
         next.startsWith("/horas/sync") || next.startsWith("/integraciones/drive");
       if (wantsDrive && data.session?.provider_refresh_token) {
-        const userId = data.session.user.id;
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("app_role")
-          .eq("id", userId)
-          .maybeSingle();
-        if (profile?.app_role === "admin") {
+        if (profile?.app_role === "admin" && userId) {
           await supabase.from("drive_connections").upsert(
             {
               provider: "google",

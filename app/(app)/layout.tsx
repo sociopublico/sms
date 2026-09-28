@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { requireSession } from "@/lib/auth";
+import { homePathForRole, requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/AppShell";
 import { AuditPageView } from "@/components/AuditPageView";
@@ -28,7 +28,12 @@ export default async function ProtectedLayout({
   const displayName = personName || displayNameFromEmail(session.email);
 
   return (
-    <AppShell displayName={displayName} canWrite={session.canWrite} isAdmin={session.isAdmin}>
+    <AppShell
+      displayName={displayName}
+      canWrite={session.canWrite}
+      isAdmin={session.isAdmin}
+      homeHref={homePathForRole(session.appRole)}
+    >
       <Suspense fallback={null}>
         <AuditPageView />
       </Suspense>

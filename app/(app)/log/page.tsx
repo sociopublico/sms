@@ -33,6 +33,10 @@ const ACTION_LABEL: Record<string, string> = {
   "workstreams.update_status": "Cambió status de workstream",
   "workstreams.add_assignment": "Asignó persona",
   "workstreams.remove_assignment": "Quitó asignación",
+  "deliverables.create": "Creó entregable",
+  "deliverables.update": "Editó entregable",
+  "deliverables.archive": "Archivó entregable",
+  "deliverables.set_invoiced": "Marcó facturación de entregable",
   "timeline.set_week_tasks": "Editó timeline",
   "drive.connect": "Conectó Google Drive",
   "drive.disconnect": "Desconectó Google Drive",
@@ -70,6 +74,7 @@ function actionLabel(action: string) {
 function roleLabel(role: string | null) {
   if (role === "admin") return "Admin";
   if (role === "pm") return "Editor";
+  if (role === "staff") return "Staff";
   if (role === "member") return "Lector";
   return role ?? "—";
 }

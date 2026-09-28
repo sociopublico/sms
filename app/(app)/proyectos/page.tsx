@@ -73,8 +73,8 @@ export default async function ProjectsPage({
   });
 
   const filtered = mapped.filter((project) => {
-    if (filters.ficha === "con" && missingFicha(project.ficha_url, project.code)) return false;
-    if (filters.ficha === "sin" && !missingFicha(project.ficha_url, project.code)) return false;
+    if (filters.ficha === "con" && missingFicha(project.ficha_url)) return false;
+    if (filters.ficha === "sin" && !missingFicha(project.ficha_url)) return false;
     if (filters.horas === "con" && !project.hasHoursAlias) return false;
     if (filters.horas === "sin" && project.hasHoursAlias) return false;
     return true;

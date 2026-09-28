@@ -78,7 +78,7 @@ export function ProjectList({
       {projects.map((project) => {
         const open = expanded.has(project.id);
         const count = project.workstreams.length;
-        const hasFicha = !missingFicha(project.ficha_url, project.code);
+        const hasFicha = !missingFicha(project.ficha_url);
         const hasWorkstreams = count > 0;
         return (
           <Card key={project.id} className="p-5">

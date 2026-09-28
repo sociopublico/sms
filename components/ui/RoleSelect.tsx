@@ -2,15 +2,9 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/Badge";
+import { ROLE_LABEL, ROLE_OPTIONS, type RoleValue } from "@/lib/app-roles";
 
-export const ROLE_OPTIONS = ["member", "pm", "admin"] as const;
-export type RoleValue = (typeof ROLE_OPTIONS)[number];
-
-export const ROLE_LABEL: Record<RoleValue, string> = {
-  member: "Lector",
-  pm: "Editor",
-  admin: "Admin",
-};
+export { ROLE_LABEL, ROLE_OPTIONS, type RoleValue } from "@/lib/app-roles";
 
 export function RoleSelect({
   value,
@@ -35,12 +29,12 @@ export function RoleSelect({
         <Badge status={value}>{ROLE_LABEL[value]}</Badge>
       </button>
       {open ? (
-        <div className="absolute z-40 mt-1 min-w-40 rounded-2xl border border-line bg-white p-1">
+        <div className="absolute z-50 mt-1 min-w-44 rounded-2xl border border-line bg-paper p-1 shadow-md">
           {ROLE_OPTIONS.map((role) => (
             <button
               key={role}
               type="button"
-              className="flex w-full items-center rounded-xl px-2 py-1.5 text-left hover:bg-canvas"
+              className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-sm text-ink hover:bg-canvas"
               onClick={() => {
                 setOpen(false);
                 if (role === value) return;

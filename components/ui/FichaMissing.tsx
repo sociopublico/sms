@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { HoverTip } from "@/components/ui/HoverTip";
 
-export function missingFicha(fichaUrl: string | null | undefined, code?: string | null) {
-  return !fichaUrl || (code?.toUpperCase().startsWith("SIN-FICHA-") ?? false);
+export function missingFicha(fichaUrl: string | null | undefined) {
+  return !fichaUrl?.trim();
 }
 
 export function FichaMissing({ href }: { href?: string }) {

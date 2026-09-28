@@ -1,13 +1,28 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { canManageDelivery, requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { addAssignment, removeAssignment, updateWorkstream, updateWorkstreamStatus } from "../../project-actions";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { Field, fieldControlClass } from "@/components/ui/Field";
+import { WorkstreamDeliverables } from "@/components/WorkstreamDeliverables";
+import { WorkstreamEditor } from "@/components/WorkstreamEditor";
+import { WorkstreamTeam } from "@/components/WorkstreamTeam";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { StatusSelect } from "@/components/ui/StatusSelect";
+
+function formatDay(iso: string | null | undefined) {
+  if (!iso) return null;
+  const [year, month, day] = iso.slice(0, 10).split("-");
+  if (!year || !month || !day) return iso;
+  return `${day}/${month}/${year}`;
+}
+
+function relName<T extends Record<string, unknown>>(
+  value: T | T[] | null | undefined,
+  key: keyof T,
+): string {
+  if (!value) return "";
+  const row = Array.isArray(value) ? value[0] : value;
+  const raw = row?.[key];
+  return typeof raw === "string" ? raw : "";
+}
 
 export default async function WorkstreamPage({
   params,
@@ -17,7 +32,7 @@ export default async function WorkstreamPage({
   const session = await requireSession();
   const { id } = await params;
   const supabase = await createClient();
-  const [{ data: ws }, { data: people }, { data: roles }] = await Promise.all([
+  const [{ data: ws }, { data: people }, { data: roles }, { data: deliverables }] = await Promise.all([
     supabase
       .from("workstreams")
       .select(
@@ -27,6 +42,16 @@ export default async function WorkstreamPage({
       .maybeSingle(),
     supabase.from("people").select("id, display_name").is("deleted_at", null).order("display_name"),
     supabase.from("roles").select("id, name").is("deleted_at", null).order("name"),
+    supabase
+      .from("deliverables")
+      .select(
+        "id, kind, description, triggers_invoice, invoice_percent, delivery_on, url, invoiced, sort_order",
+      )
+      .eq("workstream_id", id)
+      .is("deleted_at", null)
+      .order("delivery_on", { ascending: true, nullsFirst: false })
+      .order("sort_order")
+      .order("created_at"),
   ]);
   if (!ws) notFound();
   const project = ws.projects as
@@ -36,110 +61,81 @@ export default async function WorkstreamPage({
   const proj = Array.isArray(project) ? project[0] : project;
   const clientRel = proj?.clients;
   const clientName = Array.isArray(clientRel) ? clientRel[0]?.name : clientRel?.name;
+  const startLabel = formatDay(ws.start_on) ?? "Sin inicio";
+  const endLabel = formatDay(ws.end_on) ?? "Sin fin";
+  const canManage = canManageDelivery(session.appRole);
+
+  const teamAssignments = (ws.assignments ?? []).map((asg) => ({
+    id: asg.id,
+    person_id: asg.person_id,
+    role_id: asg.role_id,
+    person_name: relName(
+      asg.people as { display_name: string } | { display_name: string }[] | null,
+      "display_name",
+    ),
+    role_name: relName(asg.roles as { name: string } | { name: string }[] | null, "name"),
+  }));
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      <PageHeader
-        kicker={clientName}
-        title={ws.name}
-        description={proj?.code}
-        actions={
-          <StatusSelect
-            value={ws.status}
-            canWrite={session.canWrite}
-            onChange={updateWorkstreamStatus.bind(null, ws.id)}
-          />
-        }
-      />
-
-      {session.canWrite ? (
-        <Card className="p-6">
-          <form action={updateWorkstream} className="space-y-4">
-            <input type="hidden" name="id" value={ws.id} />
-            <Field label="Workstream">
-              <input name="name" defaultValue={ws.name} required className={fieldControlClass} />
-            </Field>
-            <Field label="Estado">
-              <select name="status" defaultValue={ws.status} className={fieldControlClass}>
-                <option value="en_curso">En curso</option>
-                <option value="pausado">Pausado</option>
-                <option value="mantenimiento">Mantenimiento</option>
-                <option value="finalizado">Finalizado</option>
-              </select>
-            </Field>
-            <Button type="submit" variant="primary">
-              Guardar
-            </Button>
-          </form>
-        </Card>
-      ) : (
-        <p className="text-sm text-muted">
-          {ws.start_on ?? "Sin inicio"} → {ws.end_on ?? "Sin fin"}
-        </p>
-      )}
-
-      <section>
-        <h2 className="mb-3 text-lg font-medium text-ink">Equipo</h2>
-        <ul className="space-y-2">
-          {(ws.assignments ?? []).map((asg) => {
-            const person = asg.people as { display_name: string } | { display_name: string }[] | null;
-            const role = asg.roles as { name: string } | { name: string }[] | null;
-            const personName = Array.isArray(person) ? person[0]?.display_name : person?.display_name;
-            const roleName = Array.isArray(role) ? role[0]?.name : role?.name;
-            return (
-              <li key={asg.id}>
-                <Card className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
-                  <span className="font-medium text-ink">{personName}</span>
-                  <span className="text-muted">{roleName}</span>
-                  {session.canWrite ? (
-                    <form action={removeAssignment.bind(null, asg.id, ws.id)} className="ml-auto">
-                      <button className="text-sm text-navy hover:text-cyan">Quitar</button>
-                    </form>
-                  ) : null}
-                </Card>
-              </li>
-            );
-          })}
-        </ul>
-        {session.canWrite ? (
-          <Card className="mt-4 p-6">
-            <form action={addAssignment} className="space-y-4">
-              <input type="hidden" name="workstream_id" value={ws.id} />
-              <Field label="Persona">
-                <select name="person_id" required className={fieldControlClass}>
-                  <option value="">Elegir persona</option>
-                  {(people ?? []).map((person) => (
-                    <option key={person.id} value={person.id}>
-                      {person.display_name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Rol">
-                <select name="role_id" required className={fieldControlClass}>
-                  <option value="">Elegir rol</option>
-                  {(roles ?? []).map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Button type="submit" variant="primary">
-                Asignar
-              </Button>
-            </form>
-          </Card>
-        ) : null}
-      </section>
-
       {proj?.id ? (
-        <p className="text-sm text-muted">
-          <Link href={`/proyectos/${proj.id}`} className="hover:text-cyan">
-            Volver al proyecto
+        <p className="text-sm">
+          <Link href={`/proyectos/${proj.id}`} className="text-cyan hover:underline">
+            ← Volver al proyecto
           </Link>
         </p>
       ) : null}
+
+      <PageHeader
+        kicker={
+          <nav aria-label="Migas de pan" className="flex flex-wrap items-center gap-1.5">
+            <Link href="/proyectos" className="hover:text-cyan">
+              Proyectos
+            </Link>
+            <span aria-hidden>/</span>
+            {proj?.id ? (
+              <Link href={`/proyectos/${proj.id}`} className="hover:text-cyan">
+                {proj.code}
+              </Link>
+            ) : (
+              <span>Sin proyecto</span>
+            )}
+            <span aria-hidden>/</span>
+            <span className="text-ink">{ws.name}</span>
+          </nav>
+        }
+        title={ws.name}
+        description={
+          <div className="space-y-1">
+            {clientName ? <p>{clientName}</p> : null}
+            <p>
+              {startLabel} → {endLabel}
+            </p>
+          </div>
+        }
+      />
+
+      <WorkstreamEditor
+        workstreamId={ws.id}
+        name={ws.name}
+        status={ws.status}
+        canWrite={session.canWrite}
+      />
+
+      <WorkstreamDeliverables
+        workstreamId={ws.id}
+        canEdit={session.canWrite}
+        canManage={canManage}
+        deliverables={deliverables ?? []}
+      />
+
+      <WorkstreamTeam
+        workstreamId={ws.id}
+        canManage={canManage}
+        assignments={teamAssignments}
+        people={(people ?? []).map((person) => ({ id: person.id, label: person.display_name }))}
+        roles={(roles ?? []).map((role) => ({ id: role.id, label: role.name }))}
+      />
     </div>
   );
 }

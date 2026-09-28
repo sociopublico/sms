@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { linkProjectAlias, unlinkProjectAlias } from "@/app/(app)/hours-actions";
 import { Button } from "@/components/ui/Button";
 import { Field, fieldControlClass } from "@/components/ui/Field";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 
 export type UnmatchedHoursLabel = {
   rawClientLabel: string;
@@ -102,12 +103,11 @@ export function ProjectHoursAliases({
 
   return (
     <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-medium text-ink">Aliases de horas</h2>
-        <p className="mt-1 text-sm text-muted">
-          Vinculá nombres del sheet/Toggl a este proyecto SMS para que la matriz sume acá.
-        </p>
-      </div>
+      <SectionHeading
+        title="Aliases de horas"
+        count={aliases.length}
+        hint="Vinculá nombres del sheet/Toggl a este proyecto SMS para que la matriz sume acá."
+      />
 
       {aliases.length ? (
         <ul className="space-y-2">
@@ -117,8 +117,10 @@ export function ProjectHoursAliases({
               className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-paper px-4 py-3 text-sm"
             >
               <div>
-                <p className="font-medium text-ink">{row.alias}</p>
-                {row.clientHint ? <p className="text-muted">Cliente sheet: {row.clientHint}</p> : null}
+                <p className="text-sm font-medium text-ink">{row.alias}</p>
+                {row.clientHint ? (
+                  <p className="text-xs text-muted">Cliente sheet: {row.clientHint}</p>
+                ) : null}
               </div>
               {canWrite ? (
                 <Button

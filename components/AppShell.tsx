@@ -210,11 +210,13 @@ export function AppShell({
   displayName,
   canWrite,
   isAdmin,
+  homeHref,
   children,
 }: {
   displayName: string;
   canWrite: boolean;
   isAdmin: boolean;
+  homeHref: string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -233,7 +235,7 @@ export function AppShell({
       <header className="sticky top-0 z-[100] h-16 border-b border-line bg-white">
         <div className="flex h-full w-full items-center justify-between gap-6 px-6">
           <div className="flex min-w-0 items-center gap-8">
-            <Link href="/timeline" className="flex min-w-0 items-center gap-2 text-navy hover:text-navy">
+            <Link href={homeHref} className="flex min-w-0 items-center gap-2 text-navy hover:text-navy">
               <BrandMark className="h-8 w-8 shrink-0" />
               <span className="truncate text-base font-medium tracking-tight text-ink">
                 Socio Management System

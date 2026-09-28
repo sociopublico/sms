@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useState, type ReactNode } from "react";
 import { Field, fieldControlClass } from "@/components/ui/Field";
 
 export type ProjectContractValues = {
@@ -9,11 +11,20 @@ export type ProjectContractValues = {
   planned_duration: string | null;
   kickoff_on: string | null;
   end_on: string | null;
+  actual_end_on: string | null;
   payment_schedule: string | null;
   billing_point: string | null;
 };
 
 export function ProjectContractFields({ defaults }: { defaults?: Partial<ProjectContractValues> }) {
+  const initialEnd = defaults?.end_on ?? "";
+  const initialActual = defaults?.actual_end_on ?? initialEnd;
+  const [endOn, setEndOn] = useState(initialEnd);
+  const [actualEndOn, setActualEndOn] = useState(initialActual);
+  const [actualTouched, setActualTouched] = useState(
+    Boolean(defaults?.actual_end_on && defaults.actual_end_on !== (defaults.end_on ?? null)),
+  );
+
   return (
     <>
       <Field label="Partner">
@@ -64,11 +75,28 @@ export function ProjectContractFields({ defaults }: { defaults?: Partial<Project
           className={fieldControlClass}
         />
       </Field>
-      <Field label="Fecha de finalización">
+      <Field label="Fecha de finalización (contrato)">
         <input
           name="end_on"
           type="date"
-          defaultValue={defaults?.end_on ?? ""}
+          value={endOn}
+          onChange={(e) => {
+            const value = e.target.value;
+            setEndOn(value);
+            if (!actualTouched) setActualEndOn(value);
+          }}
+          className={fieldControlClass}
+        />
+      </Field>
+      <Field label="Fecha de finalización real">
+        <input
+          name="actual_end_on"
+          type="date"
+          value={actualEndOn}
+          onChange={(e) => {
+            setActualTouched(true);
+            setActualEndOn(e.target.value);
+          }}
           className={fieldControlClass}
         />
       </Field>
@@ -127,7 +155,8 @@ export function ProjectContractReadout({ values }: { values: ProjectContractValu
     { label: "Carpeta general", value: <UrlOrDash href={values.drive_folder_url} /> },
     { label: "Duración prevista", value: dash(values.planned_duration) },
     { label: "Kickoff", value: formatDay(values.kickoff_on) },
-    { label: "Finalización", value: formatDay(values.end_on) },
+    { label: "Finalización (contrato)", value: formatDay(values.end_on) },
+    { label: "Finalización real", value: formatDay(values.actual_end_on) },
     { label: "Agenda de pagos", value: dash(values.payment_schedule) },
     { label: "Punto de cobro", value: billingLabel(values.billing_point) },
   ];

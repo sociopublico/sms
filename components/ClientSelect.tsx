@@ -1,18 +1,22 @@
 "use client";
 
-import { useState } from "react";
 import { fieldControlClass } from "@/components/ui/Field";
 
 const NEW = "__new__";
 
 export function ClientSelect({
   clients,
-  defaultClientId = "",
+  value,
+  onChange,
+  newClientName = "",
+  onNewClientNameChange,
 }: {
   clients: { id: string; name: string }[];
-  defaultClientId?: string;
+  value: string;
+  onChange: (value: string) => void;
+  newClientName?: string;
+  onNewClientNameChange?: (value: string) => void;
 }) {
-  const [value, setValue] = useState(defaultClientId);
   const isNew = value === NEW;
 
   return (
@@ -20,7 +24,7 @@ export function ClientSelect({
       <select
         name="client_id"
         value={value}
-        onChange={(event) => setValue(event.target.value)}
+        onChange={(event) => onChange(event.target.value)}
         required={!isNew}
         className={fieldControlClass}
       >
@@ -36,6 +40,8 @@ export function ClientSelect({
         <input
           name="new_client_name"
           required
+          value={newClientName}
+          onChange={(event) => onNewClientNameChange?.(event.target.value)}
           placeholder="Nombre del nuevo cliente"
           className={fieldControlClass}
         />

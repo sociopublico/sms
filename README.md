@@ -15,12 +15,13 @@ Si recién llegás, leé este README y después [docs/historia.md](docs/historia
 | **Proyectos** | Clientes, proyectos, workstreams, equipo asignado |
 | **Personas** | Catálogo de gente, roles, tareas, workload |
 | **Horas** | Tabla mensual + sync desde Google Drive (PDFs / sheets de horas) |
-| **Admin** | Usuarios (Lector / Editor / Admin) y log de cambios |
+| **Admin** | Usuarios (Lector / Staff / Editor / Admin) y log de cambios |
 
 Roles de la app:
 
 - **Admin** (`admin`): todo, incluyendo usuarios, logs y conectar Drive.
 - **Editor** (`pm`): escribe datos (proyectos, timeline, horas). No administra usuarios.
+- **Staff** (`staff`): mismo poder de escritura en DB que Editor; la UI se irá acotando (proyectos / facturación).
 - **Lector** (`member`): solo lectura. Cualquier `@sociopublico.com` entra así por defecto.
 
 `people` es el catálogo de staffing (apodos: Juli, Kike, Agus…). `profiles` es la cuenta que se loguea. No son lo mismo: alguien puede estar en el catálogo sin haber entrado nunca.
@@ -137,7 +138,7 @@ supabase/migrations/
 components/ui/      botones, fields, etc. (no hay shadcn)
 ```
 
-UI en español. Textos de producto: Lector / Editor / Admin (en DB: `member` / `pm` / `admin`).
+UI en español. Textos de producto: Lector / Staff / Editor / Admin (en DB: `member` / `staff` / `pm` / `admin`).
 
 ## Si algo no arranca
 

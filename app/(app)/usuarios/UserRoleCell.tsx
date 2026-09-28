@@ -1,7 +1,8 @@
 "use client";
 
 import { setUserRole } from "../user-actions";
-import { RoleSelect, type RoleValue } from "@/components/ui/RoleSelect";
+import { RoleSelect } from "@/components/ui/RoleSelect";
+import type { RoleValue } from "@/lib/app-roles";
 
 export function UserRoleCell({
   email,
