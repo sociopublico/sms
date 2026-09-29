@@ -43,7 +43,7 @@ export default async function ProjectsPage({
   const supabase = await createClient();
   let query = supabase
     .from("projects")
-    .select("id, code, ficha_url, kind, status, client_id, clients(name), workstreams(id, name, status)")
+    .select("id, code, name, ficha_url, kind, status, client_id, clients(name), workstreams(id, name, status)")
     .order("code");
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.client) query = query.eq("client_id", filters.client);
@@ -64,6 +64,7 @@ export default async function ProjectsPage({
     return {
       id: project.id,
       code: project.code,
+      name: project.name?.trim() || "",
       ficha_url: project.ficha_url,
       status: project.status,
       clientName: clientName ?? "",
@@ -96,6 +97,11 @@ export default async function ProjectsPage({
       href: proyectosHref({ ...filters, status: "mantenimiento" }),
       label: "Mantenimiento",
       active: filters.status === "mantenimiento",
+    },
+    {
+      href: proyectosHref({ ...filters, status: "finalizado" }),
+      label: "Finalizado",
+      active: filters.status === "finalizado",
     },
   ];
 

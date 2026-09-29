@@ -20,9 +20,9 @@ export default async function TimelinePage({
   const { data: workstreams } = await supabase
     .from("workstreams")
     .select(
-      "id, name, status, start_on, end_on, projects(id, code, status, kind, clients(name)), assignments(roles(name), people(display_name, hidden))",
+      "id, name, status, start_on, end_on, projects(id, code, name, status, kind, clients(name)), assignments(roles(name), people(display_name, hidden))",
     )
-    .in("status", ["en_curso", "pausado", "mantenimiento"])
+    .in("status", ["en_curso", "pausado", "mantenimiento", "finalizado"])
     .order("name");
 
   const { data: tasks } = await supabase.from("tasks").select("id, name, color").is("deleted_at", null).order("name");
@@ -48,6 +48,7 @@ export default async function TimelinePage({
       | {
           id: string;
           code: string;
+          name: string | null;
           status: string;
           kind: string;
           clients: { name: string } | { name: string }[];
@@ -55,6 +56,7 @@ export default async function TimelinePage({
       | {
           id: string;
           code: string;
+          name: string | null;
           status: string;
           kind: string;
           clients: { name: string } | { name: string }[];
@@ -88,6 +90,7 @@ export default async function TimelinePage({
       clientName: clientName ?? "",
       projectId: proj?.id ?? ws.id,
       projectCode: proj?.code ?? "",
+      projectName: proj?.name?.trim() || "",
       projectStatus: proj?.status ?? ws.status,
       pms,
       tasksByWeek: tasksByWs[ws.id] ?? {},

@@ -36,7 +36,7 @@ export default async function WorkstreamPage({
     supabase
       .from("workstreams")
       .select(
-        "id, name, status, start_on, end_on, projects(id, code, clients(name)), assignments(id, person_id, role_id, people(display_name), roles(name))",
+        "id, name, status, start_on, end_on, projects(id, code, name, clients(name)), assignments(id, person_id, role_id, people(display_name), roles(name))",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -55,12 +55,13 @@ export default async function WorkstreamPage({
   ]);
   if (!ws) notFound();
   const project = ws.projects as
-    | { id: string; code: string; clients: { name: string } | { name: string }[] }
-    | { id: string; code: string; clients: { name: string } | { name: string }[] }[]
+    | { id: string; code: string; name: string | null; clients: { name: string } | { name: string }[] }
+    | { id: string; code: string; name: string | null; clients: { name: string } | { name: string }[] }[]
     | null;
   const proj = Array.isArray(project) ? project[0] : project;
   const clientRel = proj?.clients;
   const clientName = Array.isArray(clientRel) ? clientRel[0]?.name : clientRel?.name;
+  const projectLabel = proj?.name?.trim() || proj?.code || "Sin proyecto";
   const startLabel = formatDay(ws.start_on) ?? "Sin inicio";
   const endLabel = formatDay(ws.end_on) ?? "Sin fin";
   const canManage = canManageDelivery(session.appRole);
@@ -95,7 +96,7 @@ export default async function WorkstreamPage({
             <span aria-hidden>/</span>
             {proj?.id ? (
               <Link href={`/proyectos/${proj.id}`} className="hover:text-cyan">
-                {proj.code}
+                {projectLabel}
               </Link>
             ) : (
               <span>Sin proyecto</span>

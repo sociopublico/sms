@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, t
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { addWeeks, formatWeekLabel, isCurrentMonth, STATUS_LABEL, toISODate } from "@/lib/dates";
+import { addWeeks, formatWeekLabel, isCurrentMonth, STATUS_LABEL, STATUS_OPTIONS, toISODate } from "@/lib/dates";
 import { setWeekTasks } from "@/app/(app)/project-actions";
 import { MarqueeText } from "@/components/ui/MarqueeText";
 import { AngleIcon } from "@/components/ui/AngleIcon";
@@ -21,6 +21,7 @@ export type TimelineRow = {
   clientName: string;
   projectId: string;
   projectCode: string;
+  projectName: string;
   projectStatus: string;
   pms: string[];
   tasksByWeek: Record<string, TimelineTask[]>;
@@ -43,6 +44,29 @@ function uniqueSorted(values: string[]) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b, "es"));
 }
 
+/** Semana más reciente (ISO) con al menos una tarea; null si no hay actividad. */
+function latestTaskWeek(tasksByWeek: Record<string, TimelineTask[]>): string | null {
+  let latest: string | null = null;
+  for (const [week, tasks] of Object.entries(tasksByWeek)) {
+    if (!tasks.length) continue;
+    if (!latest || week > latest) latest = week;
+  }
+  return latest;
+}
+
+function compareByRecentActivity(
+  aWeek: string | null,
+  bWeek: string | null,
+  tieBreak: number,
+): number {
+  if (aWeek && bWeek) {
+    const byWeek = bWeek.localeCompare(aWeek);
+    if (byWeek !== 0) return byWeek;
+  } else if (aWeek && !bWeek) return -1;
+  else if (!aWeek && bWeek) return 1;
+  return tieBreak;
+}
+
 const NONE = "__none__";
 
 function paramsList(search: URLSearchParams, key: string) {
@@ -63,6 +87,7 @@ function sliceWeeks(weeks: string[], thisWeek: string, count: number) {
 type ProjectGroup = {
   projectId: string;
   projectCode: string;
+  projectName: string;
   projectStatus: string;
   clientName: string;
   pms: string[];
@@ -185,11 +210,11 @@ export function TimelineGrid({
 
   const statusOptions = useMemo(
     () =>
-      uniqueSorted(rows.map((row) => row.status)).map((value) => ({
+      STATUS_OPTIONS.map((value) => ({
         value,
         label: STATUS_LABEL[value] ?? value,
       })),
-    [rows],
+    [],
   );
   const nameOptions = useMemo(
     () => uniqueSorted(rows.map((row) => row.name)).map((value) => ({ value, label: value })),
@@ -211,7 +236,11 @@ export function TimelineGrid({
 
   const viewRows = useMemo(() => {
     const filtered = rows.filter((row) => {
-      if (statusFilter && !statusFilter.includes(row.status)) return false;
+      if (statusFilter) {
+        if (!statusFilter.includes(row.status)) return false;
+      } else if (row.status === "finalizado") {
+        return false;
+      }
       if (nameFilter && !nameFilter.includes(row.name)) return false;
       if (clientFilter && !clientFilter.includes(row.clientName || EMPTY)) return false;
       if (pmFilter) {
@@ -224,9 +253,11 @@ export function TimelineGrid({
     const dir = sortDir === "desc" ? -1 : 1;
     copy.sort((a, b) => {
       if (!sortKey) {
-        return (
+        return compareByRecentActivity(
+          latestTaskWeek(a.tasksByWeek),
+          latestTaskWeek(b.tasksByWeek),
           (a.clientName || EMPTY).localeCompare(b.clientName || EMPTY, "es") ||
-          a.name.localeCompare(b.name, "es")
+            a.name.localeCompare(b.name, "es"),
         );
       }
       if (sortKey === "status") {
@@ -256,6 +287,7 @@ export function TimelineGrid({
         byProject.set(row.projectId, {
           projectId: row.projectId,
           projectCode: row.projectCode,
+          projectName: row.projectName,
           projectStatus: row.projectStatus,
           clientName: row.clientName,
           pms: [...row.pms],
@@ -267,7 +299,21 @@ export function TimelineGrid({
     const dir = sortDir === "desc" ? -1 : 1;
     list.sort((a, b) => {
       if (!sortKey) {
-        return (a.clientName || EMPTY).localeCompare(b.clientName || EMPTY, "es");
+        const aWeek = a.workstreams.reduce<string | null>((max, row) => {
+          const week = latestTaskWeek(row.tasksByWeek);
+          if (!week) return max;
+          return !max || week > max ? week : max;
+        }, null);
+        const bWeek = b.workstreams.reduce<string | null>((max, row) => {
+          const week = latestTaskWeek(row.tasksByWeek);
+          if (!week) return max;
+          return !max || week > max ? week : max;
+        }, null);
+        return compareByRecentActivity(
+          aWeek,
+          bWeek,
+          (a.clientName || EMPTY).localeCompare(b.clientName || EMPTY, "es"),
+        );
       }
       if (sortKey === "client") {
         return dir * (a.clientName || EMPTY).localeCompare(b.clientName || EMPTY, "es");
@@ -737,7 +783,7 @@ export function TimelineGrid({
                       />
                       <span className="min-w-0 flex-1">
                         <MarqueeText
-                          text={group.clientName || EMPTY}
+                          text={group.projectName || group.clientName || EMPTY}
                           className="text-base font-medium text-ink"
                         />
                         <div className="truncate text-muted">

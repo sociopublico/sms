@@ -157,10 +157,10 @@ export default async function ProjectDetailPage({
             <span aria-hidden className="text-muted">
               /
             </span>
-            <span className="text-muted">{project.code}</span>
+            <span className="text-muted">{project.name?.trim() || project.code}</span>
           </nav>
         }
-        title={project.code}
+        title={project.name?.trim() || project.code}
         titleClassName="font-bold"
         description={
           <div className="space-y-1">

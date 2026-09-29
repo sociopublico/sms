@@ -11,6 +11,7 @@ import { StatusSelect } from "@/components/ui/StatusSelect";
 export type ProjectListItem = {
   id: string;
   code: string;
+  name: string;
   ficha_url: string | null;
   status: string;
   clientName: string;
@@ -96,7 +97,7 @@ export function ProjectList({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <Link href={`/proyectos/${project.id}`} className="font-medium text-ink hover:text-cyan">
-                      {project.code}
+                      {project.name || project.code}
                     </Link>
                     <MetaPill ok={hasFicha} okLabel="Con ficha" missingLabel="Sin ficha" />
                     <MetaPill
