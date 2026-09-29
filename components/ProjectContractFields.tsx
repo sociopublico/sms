@@ -30,14 +30,6 @@ export function ProjectContractFields({ defaults }: { defaults?: Partial<Project
       <Field label="Partner">
         <input name="partner" defaultValue={defaults?.partner ?? ""} className={fieldControlClass} />
       </Field>
-      <Field label="Fecha de firma del contrato">
-        <input
-          name="contract_signed_on"
-          type="date"
-          defaultValue={defaults?.contract_signed_on ?? ""}
-          className={fieldControlClass}
-        />
-      </Field>
       <Field label="Link a la propuesta">
         <input
           name="proposal_url"
@@ -150,7 +142,6 @@ function UrlOrDash({ href }: { href: string | null | undefined }) {
 export function ProjectContractReadout({ values }: { values: ProjectContractValues }) {
   const rows: { label: string; value: ReactNode }[] = [
     { label: "Partner", value: dash(values.partner) },
-    { label: "Fecha de firma", value: formatDay(values.contract_signed_on) },
     { label: "Propuesta", value: <UrlOrDash href={values.proposal_url} /> },
     { label: "Carpeta general", value: <UrlOrDash href={values.drive_folder_url} /> },
     { label: "Duración prevista", value: dash(values.planned_duration) },

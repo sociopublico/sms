@@ -28,7 +28,7 @@ Antes de codear, leé `README.md`. Historia y backlog: `docs/historia.md`, `docs
 
 ## Dominio
 
-- **Cliente** → **proyecto** (`name` nombre legible, `code` único / ID de contrato — la UI sugiere `{Cliente}-{Nombre}` o `InternoSocio-{Nombre}` pero se puede editar; ficha URL, kind client/internal; datos de contrato opcionales: partner, fechas de firma/kickoff/`end_on` fin de contrato/`actual_end_on` fin real, propuesta, carpeta Drive, duración, agenda de pagos, billing_point) → **workstream** (fechas `start_on`/`end_on` derivadas de semanas con tareas).
+- **Cliente** → **proyecto** (`name` nombre legible, `code` único / ID de contrato — la UI sugiere `{Cliente}_{Nombre}_{yyyy-mm}` o `InternoSocio_{Nombre}_{yyyy-mm}` (espacios → `-`, partes unidas con `_`) a partir de la fecha de firma (`contract_signed_on`, obligatoria) y se puede editar; ficha URL, kind client/internal; datos de contrato: partner, fechas de firma/kickoff/`end_on` fin de contrato/`actual_end_on` fin real, propuesta, carpeta Drive, duración, agenda de pagos, billing_point) → **workstream** (fechas `start_on`/`end_on` derivadas de semanas con tareas).
 - **Entregable** (`deliverables`): cuelga del workstream. Tipo `product`/`hours`, descripción, dispara factura + %, fecha de entrega, URL, facturado, `sort_order`. Soft delete con `deleted_at`.
 - Retención de archivos: aviso a los 90 días de `projects.actual_end_on` (fin real), hasta marcar `file_retention_resolution`. Al cargar `end_on` (fin de contrato), `actual_end_on` se autocompleta con el mismo valor y se puede editar después.
 - **Persona** (`people.display_name`, apodos) ≠ **usuario logueado** (`profiles` + `auth.users`). Link opcional `profiles.person_id`.

@@ -130,6 +130,7 @@ export function ProjectEditor({
                 defaultClientId={values.client_id ?? ""}
                 defaultName={values.name ?? ""}
                 defaultCode={values.code}
+                defaultContractSignedOn={values.contract_signed_on ?? ""}
                 defaultFichaUrl={values.ficha_url ?? ""}
                 codeRequired
               />
@@ -153,10 +154,10 @@ export function ProjectEditor({
                 label="Cliente"
                 value={values.kind === "internal" ? "Interno" : dash(values.client_name)}
               />
+              <DetailRow label="Fecha de firma" value={formatDay(values.contract_signed_on)} />
               <DetailRow label="ID de contrato" value={dash(values.code)} />
               <DetailRow label="Ficha" value={dash(values.ficha_url)} />
               <DetailRow label="Partner" value={dash(values.partner)} />
-              <DetailRow label="Fecha de firma" value={formatDay(values.contract_signed_on)} />
               <DetailRow label="Propuesta" value={<UrlOrDash href={values.proposal_url} />} />
               <DetailRow label="Carpeta general" value={<UrlOrDash href={values.drive_folder_url} />} />
               <DetailRow label="Duración prevista" value={dash(values.planned_duration)} />

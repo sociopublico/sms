@@ -80,6 +80,8 @@ export async function createProject(formData: FormData) {
       const status = String(formData.get("status") ?? "en_curso");
       const code = String(formData.get("code") ?? "").trim();
       if (!code) throw new Error("El ID de contrato es obligatorio.");
+      const contractSignedOn = parseOptionalDate(formData, "contract_signed_on");
+      if (!contractSignedOn) throw new Error("La fecha de firma del contrato es obligatoria.");
       const clientId = await resolveClientId(supabase, formData, kind);
 
       const endOn = parseOptionalDate(formData, "end_on");
@@ -95,7 +97,7 @@ export async function createProject(formData: FormData) {
           kind,
           status,
           partner: parseOptionalText(formData, "partner"),
-          contract_signed_on: parseOptionalDate(formData, "contract_signed_on"),
+          contract_signed_on: contractSignedOn,
           proposal_url: parseOptionalHttpUrl(String(formData.get("proposal_url") ?? ""), "El link a la propuesta"),
           drive_folder_url: parseOptionalHttpUrl(
             String(formData.get("drive_folder_url") ?? ""),
@@ -186,6 +188,8 @@ export async function updateProject(formData: FormData) {
       if (!projectName) throw new Error("El nombre del proyecto es obligatorio.");
       const code = String(formData.get("code") ?? "").trim();
       if (!code) throw new Error("El ID de contrato es obligatorio.");
+      const contractSignedOn = parseOptionalDate(formData, "contract_signed_on");
+      if (!contractSignedOn) throw new Error("La fecha de firma del contrato es obligatoria.");
       const { data: before } = await supabase
         .from("projects")
         .select("file_retention_resolution")
@@ -199,7 +203,7 @@ export async function updateProject(formData: FormData) {
           code,
           ficha_url: parseOptionalText(formData, "ficha_url"),
           partner: parseOptionalText(formData, "partner"),
-          contract_signed_on: parseOptionalDate(formData, "contract_signed_on"),
+          contract_signed_on: contractSignedOn,
           proposal_url: parseOptionalHttpUrl(String(formData.get("proposal_url") ?? ""), "El link a la propuesta"),
           drive_folder_url: parseOptionalHttpUrl(
             String(formData.get("drive_folder_url") ?? ""),

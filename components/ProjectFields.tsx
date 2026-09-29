@@ -11,9 +11,10 @@ function suggestedCode(
   kind: string,
   projectName: string,
   clientName: string | null,
+  contractSignedOn: string,
 ) {
   if (kind !== "client" && kind !== "internal") return "";
-  return buildProjectCode(kind, projectName, clientName);
+  return buildProjectCode(kind, projectName, clientName, contractSignedOn);
 }
 
 export function ProjectFields({
@@ -22,6 +23,7 @@ export function ProjectFields({
   defaultClientId = "",
   defaultName = "",
   defaultCode = "",
+  defaultContractSignedOn = "",
   defaultFichaUrl = "",
   codeRequired = false,
   requireKindChoice = false,
@@ -31,6 +33,7 @@ export function ProjectFields({
   defaultClientId?: string;
   defaultName?: string;
   defaultCode?: string;
+  defaultContractSignedOn?: string;
   defaultFichaUrl?: string;
   codeRequired?: boolean;
   requireKindChoice?: boolean;
@@ -40,12 +43,18 @@ export function ProjectFields({
     defaultKind === "client"
       ? (clientOptions.find((client) => client.id === defaultClientId)?.name ?? null)
       : null;
-  const initialSuggested = suggestedCode(defaultKind, defaultName, initialClientName);
+  const initialSuggested = suggestedCode(
+    defaultKind,
+    defaultName,
+    initialClientName,
+    defaultContractSignedOn,
+  );
 
   const [kind, setKind] = useState(defaultKind);
   const [projectName, setProjectName] = useState(defaultName);
   const [clientId, setClientId] = useState(defaultClientId);
   const [newClientName, setNewClientName] = useState("");
+  const [contractSignedOn, setContractSignedOn] = useState(defaultContractSignedOn);
   const [code, setCode] = useState(defaultCode || initialSuggested);
   const [codeTouched, setCodeTouched] = useState(
     Boolean(defaultCode && defaultCode !== initialSuggested),
@@ -59,9 +68,14 @@ export function ProjectFields({
     return clientOptions.find((client) => client.id === clientId)?.name ?? null;
   }, [kind, clientId, newClientName, clientOptions]);
 
-  function applySuggestion(nextKind: string, nextName: string, nextClientName: string | null) {
+  function applySuggestion(
+    nextKind: string,
+    nextName: string,
+    nextClientName: string | null,
+    nextSignedOn: string,
+  ) {
     if (codeTouched) return;
-    setCode(suggestedCode(nextKind, nextName, nextClientName));
+    setCode(suggestedCode(nextKind, nextName, nextClientName, nextSignedOn));
   }
 
   return (
@@ -74,7 +88,7 @@ export function ProjectFields({
           onChange={(event) => {
             const next = event.target.value;
             setProjectName(next);
-            applySuggestion(kind, next, selectedClientName);
+            applySuggestion(kind, next, selectedClientName, contractSignedOn);
           }}
           className={fieldControlClass}
         />
@@ -90,13 +104,13 @@ export function ProjectFields({
             if (next !== "client") {
               setClientId("");
               setNewClientName("");
-              applySuggestion(next, projectName, null);
+              applySuggestion(next, projectName, null, contractSignedOn);
             } else {
               const clientName =
                 clientId === NEW_CLIENT
                   ? newClientName.trim() || null
                   : (clientOptions.find((client) => client.id === clientId)?.name ?? null);
-              applySuggestion(next, projectName, clientName);
+              applySuggestion(next, projectName, clientName, contractSignedOn);
             }
           }}
           className={fieldControlClass}
@@ -117,18 +131,32 @@ export function ProjectFields({
                 nextId === NEW_CLIENT
                   ? newClientName.trim() || null
                   : (clientOptions.find((client) => client.id === nextId)?.name ?? null);
-              applySuggestion(kind, projectName, clientName);
+              applySuggestion(kind, projectName, clientName, contractSignedOn);
             }}
             newClientName={newClientName}
             onNewClientNameChange={(nextName) => {
               setNewClientName(nextName);
               if (clientId === NEW_CLIENT) {
-                applySuggestion(kind, projectName, nextName.trim() || null);
+                applySuggestion(kind, projectName, nextName.trim() || null, contractSignedOn);
               }
             }}
           />
         </Field>
       ) : null}
+      <Field label="Fecha de firma del contrato">
+        <input
+          name="contract_signed_on"
+          type="date"
+          required
+          value={contractSignedOn}
+          onChange={(event) => {
+            const next = event.target.value;
+            setContractSignedOn(next);
+            applySuggestion(kind, projectName, selectedClientName, next);
+          }}
+          className={fieldControlClass}
+        />
+      </Field>
       <Field label="ID de contrato">
         <input
           name="code"
@@ -139,7 +167,7 @@ export function ProjectFields({
             setCode(event.target.value);
           }}
           placeholder=""
-          title="Se sugiere a partir del nombre y el cliente; podés editarlo"
+          title="Se sugiere a partir del nombre, el cliente y la fecha de firma; podés editarlo"
           className={fieldControlClass}
         />
       </Field>

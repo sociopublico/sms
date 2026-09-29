@@ -11,7 +11,7 @@ Cosas que el equipo ya marcó y **no** están hechas. Si vas a agarrar una, conf
 
 - (Hecho) Filtros: cliente, tiene ficha sí/no, tiene alias de horas sí/no; expandir/colapsar todos removido.
 - (Hecho) Datos de contrato en ficha (partner, fechas, propuesta, carpeta, duración, agenda de pagos, punto de cobro).
-- (Hecho) Campo `name` (nombre del proyecto) antes de tipo en alta/edición; la UI sugiere `code` (`Cliente-Nombre` / `InternoSocio-Nombre`) y se puede editar a mano (proyectos viejos conservan el suyo).
+- (Hecho) Campo `name` (nombre del proyecto) antes de tipo en alta/edición; la UI sugiere `code` (`Cliente_Nombre_yyyy-mm` / `InternoSocio_Nombre_yyyy-mm`; espacios → `-`, partes → `_`) y se puede editar a mano (proyectos viejos conservan el suyo). Fecha de firma obligatoria y antes del ID.
 - (Hecho) `actual_end_on` (fin real) aparte de `end_on` (fin de contrato); labels UI actualizados; al setear contrato se autocompleta el fin real.
 - (Hecho) Recordatorio de retención de archivos a los 90 días de `actual_end_on` (carteles en `/editor`, `/staff`, ficha; tilde hecho/no aplica; tarea en timeline).
 
