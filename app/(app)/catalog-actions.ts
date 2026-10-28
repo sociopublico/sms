@@ -99,6 +99,7 @@ export async function upsertRole(formData: FormData) {
         }
       }
       revalidatePath("/roles");
+      revalidatePath("/carga");
     },
     formPayload(formData),
     { type: "role", id: String(formData.get("id") ?? "") || undefined },

@@ -1,10 +1,9 @@
 import { requireWriter } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { archiveRole, upsertRole } from "../catalog-actions";
-import { Badge } from "@/components/ui/Badge";
+import { upsertRole } from "../catalog-actions";
+import { RoleRow } from "./RoleRow";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { ConfirmDelete } from "@/components/ui/ConfirmDelete";
 import { Field, fieldControlClass } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -46,19 +45,11 @@ export default async function RolesPage() {
           </thead>
           <tbody>
             {(roles ?? []).map((role) => (
-              <tr key={role.id} className="border-b border-line last:border-0">
-                <td className="px-4 py-3 font-medium text-ink">{role.name}</td>
-                <td className="px-4 py-3">
-                  <Badge status={role.always_on_duty ? "en_curso" : "pausado"}>
-                    {role.always_on_duty ? "Sí" : "No"}
-                  </Badge>
-                </td>
-                {session.canWrite ? (
-                  <td className="px-4 py-3 text-right">
-                    <ConfirmDelete label={role.name} action={archiveRole.bind(null, role.id)} />
-                  </td>
-                ) : null}
-              </tr>
+              <RoleRow
+                key={role.id}
+                canWrite={session.canWrite}
+                role={{ id: role.id, name: role.name, always_on_duty: role.always_on_duty }}
+              />
             ))}
           </tbody>
         </table>
