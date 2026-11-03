@@ -11,6 +11,8 @@ export type LoadDetail = {
   person_id: string;
   week_start: string;
   project_code: string;
+  project_name: string;
+  client_name: string;
   workstream_name: string;
   task_name: string;
   role_name: string;
@@ -68,6 +70,8 @@ export function LoadHeatmap({
     left: number;
     place: "left" | "right";
   } | null>(null);
+  const [tipNudge, setTipNudge] = useState({ x: 0, y: 0 });
+  const tipBoxRef = useRef<HTMLDivElement>(null);
   const map = useMemo(() => {
     const result = new Map<string, number>();
     for (const cell of cells) {
@@ -123,15 +127,36 @@ export function LoadHeatmap({
     ? details.filter((d) => d.person_id === tip.person && d.week_start === tip.week)
     : [];
   const grouped = useMemo(() => {
-    const names = new Set<string>();
-    for (const d of tipDetails) names.add(d.workstream_name);
-    return [...names];
+    const byWork = new Map<
+      string,
+      { key: string; workstream: string; tasks: string[]; client: string; project: string }
+    >();
+    for (const detail of tipDetails) {
+      const project = detail.project_name || detail.project_code;
+      const key = `${detail.workstream_name}|${detail.client_name}|${project}`;
+      const existing = byWork.get(key);
+      if (!existing) {
+        byWork.set(key, {
+          key,
+          workstream: detail.workstream_name,
+          tasks: detail.task_name ? [detail.task_name] : [],
+          client: detail.client_name,
+          project,
+        });
+      } else if (detail.task_name && !existing.tasks.includes(detail.task_name)) {
+        existing.tasks.push(detail.task_name);
+      }
+    }
+    return [...byWork.values()].map((item) => ({
+      ...item,
+      tasks: item.tasks.sort((a, b) => a.localeCompare(b, "es")),
+    }));
   }, [tipDetails]);
 
   function positionTip(el: HTMLElement) {
     const r = el.getBoundingClientRect();
     const gap = 8;
-    const place: "left" | "right" = window.innerWidth - r.right > 240 ? "right" : "left";
+    const place: "left" | "right" = window.innerWidth - r.right > 280 ? "right" : "left";
     return {
       top: r.top + r.height / 2,
       left: place === "right" ? r.right + gap : r.left - gap,
@@ -139,11 +164,35 @@ export function LoadHeatmap({
     };
   }
 
+  useLayoutEffect(() => {
+    const el = tipBoxRef.current;
+    if (!el) return;
+    const margin = 8;
+    const rect = el.getBoundingClientRect();
+    let x = 0;
+    let y = 0;
+    if (rect.bottom > window.innerHeight - margin) {
+      y -= rect.bottom - (window.innerHeight - margin);
+    }
+    if (rect.top + y < margin) {
+      y += margin - (rect.top + y);
+    }
+    if (rect.right > window.innerWidth - margin) {
+      x -= rect.right - (window.innerWidth - margin);
+    }
+    if (rect.left + x < margin) {
+      x += margin - (rect.left + x);
+    }
+    if (x !== 0 || y !== 0) setTipNudge({ x, y });
+  }, [tip]);
+
   function showCellTip(person: string, week: string, el: HTMLElement) {
+    setTipNudge({ x: 0, y: 0 });
     setTip({ kind: "cell", person, week, ...positionTip(el) });
   }
 
   function showDotTip(kind: "cyan" | "orange", el: HTMLElement) {
+    setTipNudge({ x: 0, y: 0 });
     setTip({ kind, ...positionTip(el) });
   }
 
@@ -252,11 +301,15 @@ export function LoadHeatmap({
 
       {tip ? (
         <div
-          className="pointer-events-none fixed z-[110] max-w-xs rounded-2xl border border-line bg-white px-3 py-2 text-sm"
+          ref={tipBoxRef}
+          className="pointer-events-none fixed z-[110] max-w-sm rounded-2xl border border-line bg-white px-3 py-2 text-sm"
           style={{
             top: tip.top,
             left: tip.left,
-            transform: tip.place === "right" ? "translateY(-50%)" : "translate(-100%, -50%)",
+            transform:
+              tip.place === "right"
+                ? `translate(${tipNudge.x}px, calc(-50% + ${tipNudge.y}px))`
+                : `translate(calc(-100% + ${tipNudge.x}px), calc(-50% + ${tipNudge.y}px))`,
           }}
         >
           {tip.kind === "cyan" ? (
@@ -266,9 +319,15 @@ export function LoadHeatmap({
           ) : grouped.length === 0 ? (
             <p className="text-muted">No tiene tareas cargadas esta semana.</p>
           ) : (
-            <ul className="space-y-1 text-ink ">
-              {grouped.map((name) => (
-                <li className="ml-3 -pl-4 list-disc" key={name}>{name}</li>
+            <ul className="space-y-2 text-ink">
+              {grouped.map((item) => (
+                <li key={item.key}>
+                  <div className="font-medium">{item.tasks.join(", ") || item.workstream}</div>
+                  {item.tasks.length ? <div>{item.workstream}</div> : null}
+                  <div className="break-words text-muted">
+                    {[item.client, item.project].filter(Boolean).join(" · ")}
+                  </div>
+                </li>
               ))}
             </ul>
           )}
