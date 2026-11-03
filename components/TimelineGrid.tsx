@@ -147,6 +147,8 @@ export function TimelineGrid({
     left: number;
     place: "left" | "right";
   } | null>(null);
+  const [tipNudge, setTipNudge] = useState({ x: 0, y: 0 });
+  const tipBoxRef = useRef<HTMLDivElement>(null);
   const [, startTransition] = useTransition();
   const clipRef = useRef<string[]>([]);
   const selectedRef = useRef(selected);
@@ -489,6 +491,7 @@ export function TimelineGrid({
     if (tipTimer.current) window.clearTimeout(tipTimer.current);
     tipTimer.current = null;
     setTip(null);
+    setTipNudge({ x: 0, y: 0 });
   }
 
   function scheduleTip(rowId: string, week: string, el: HTMLElement) {
@@ -497,6 +500,7 @@ export function TimelineGrid({
     tipTimer.current = window.setTimeout(() => {
       const r = el.getBoundingClientRect();
       const place: "left" | "right" = window.innerWidth - r.right > 240 ? "right" : "left";
+      setTipNudge({ x: 0, y: 0 });
       setTip({
         rowId,
         week,
@@ -506,6 +510,28 @@ export function TimelineGrid({
       });
     }, 1000);
   }
+
+  useLayoutEffect(() => {
+    const el = tipBoxRef.current;
+    if (!el) return;
+    const margin = 8;
+    const rect = el.getBoundingClientRect();
+    let x = 0;
+    let y = 0;
+    if (rect.bottom > window.innerHeight - margin) {
+      y -= rect.bottom - (window.innerHeight - margin);
+    }
+    if (rect.top + y < margin) {
+      y += margin - (rect.top + y);
+    }
+    if (rect.right > window.innerWidth - margin) {
+      x -= rect.right - (window.innerWidth - margin);
+    }
+    if (rect.left + x < margin) {
+      x += margin - (rect.left + x);
+    }
+    if (x !== 0 || y !== 0) setTipNudge({ x, y });
+  }, [tip]);
 
   useEffect(() => {
     function typingInField() {
@@ -655,24 +681,6 @@ export function TimelineGrid({
               className="sticky top-16 z-50 border-b border-line bg-white px-2 py-2.5 shadow-[1px_0_0_0_var(--line)]"
               style={{
                 left: "var(--tl-status)",
-                width: "var(--tl-name)",
-                maxWidth: "var(--tl-name)",
-              }}
-            >
-              <TimelineColumnHeader
-                label="Nombre"
-                sortKey="name"
-                currentSort={currentSort}
-                onSort={setSort}
-                options={nameOptions}
-                selected={nameFilter}
-                onFilter={(values) => setFilter("ws", values)}
-              />
-            </th>
-            <th
-              className="sticky top-16 z-50 border-b border-line bg-white px-2 py-2.5 shadow-[1px_0_0_0_var(--line)]"
-              style={{
-                left: "calc(var(--tl-status) + var(--tl-name))",
                 width: "var(--tl-client)",
                 maxWidth: "var(--tl-client)",
               }}
@@ -685,6 +693,24 @@ export function TimelineGrid({
                 options={clientOptions}
                 selected={clientFilter}
                 onFilter={(values) => setFilter("cl", values)}
+              />
+            </th>
+            <th
+              className="sticky top-16 z-50 border-b border-line bg-white px-2 py-2.5 shadow-[1px_0_0_0_var(--line)]"
+              style={{
+                left: "calc(var(--tl-status) + var(--tl-client))",
+                width: "var(--tl-name)",
+                maxWidth: "var(--tl-name)",
+              }}
+            >
+              <TimelineColumnHeader
+                label="Nombre"
+                sortKey="name"
+                currentSort={currentSort}
+                onSort={setSort}
+                options={nameOptions}
+                selected={nameFilter}
+                onFilter={(values) => setFilter("ws", values)}
               />
             </th>
             <th
@@ -760,6 +786,16 @@ export function TimelineGrid({
                     className="sticky z-10 max-w-0 overflow-hidden bg-canvas px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
                     style={{
                       left: "var(--tl-status)",
+                      width: "var(--tl-client)",
+                      maxWidth: "var(--tl-client)",
+                    }}
+                  >
+                    <MarqueeText text={group.clientName || EMPTY} className="text-navy" />
+                  </td>
+                  <td
+                    className="sticky z-10 max-w-0 overflow-hidden bg-canvas px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
+                    style={{
+                      left: "calc(var(--tl-status) + var(--tl-client))",
                       width: "var(--tl-name)",
                       maxWidth: "var(--tl-name)",
                     }}
@@ -783,26 +819,15 @@ export function TimelineGrid({
                       />
                       <span className="min-w-0 flex-1">
                         <MarqueeText
-                          text={group.projectName || group.clientName || EMPTY}
+                          text={group.projectName || group.projectCode || EMPTY}
                           className="text-base font-medium text-ink"
                         />
                         <div className="truncate text-muted">
-                          {group.projectCode ? `${group.projectCode} · ` : ""}
                           {group.workstreams.length}{" "}
                           {group.workstreams.length === 1 ? "workstream" : "workstreams"}
                         </div>
                       </span>
                     </div>
-                  </td>
-                  <td
-                    className="sticky z-10 max-w-0 overflow-hidden bg-canvas px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
-                    style={{
-                      left: "calc(var(--tl-status) + var(--tl-name))",
-                      width: "var(--tl-client)",
-                      maxWidth: "var(--tl-client)",
-                    }}
-                  >
-                    <MarqueeText text={group.clientName || EMPTY} className="text-navy" />
                   </td>
                   <td
                     className="sticky z-10 max-w-0 overflow-hidden bg-canvas px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
@@ -863,6 +888,16 @@ export function TimelineGrid({
                       className="sticky z-10 max-w-0 overflow-hidden bg-white px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
                       style={{
                         left: "var(--tl-status)",
+                        width: "var(--tl-client)",
+                        maxWidth: "var(--tl-client)",
+                      }}
+                    >
+                      <MarqueeText text={row.clientName || EMPTY} className="text-navy" />
+                    </td>
+                    <td
+                      className="sticky z-10 max-w-0 overflow-hidden bg-white px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
+                      style={{
+                        left: "calc(var(--tl-status) + var(--tl-client))",
                         width: "var(--tl-name)",
                         maxWidth: "var(--tl-name)",
                       }}
@@ -874,16 +909,6 @@ export function TimelineGrid({
                           className="text-base font-medium text-ink hover:text-cyan"
                         />
                       </div>
-                    </td>
-                    <td
-                      className="sticky z-10 max-w-0 overflow-hidden bg-white px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
-                      style={{
-                        left: "calc(var(--tl-status) + var(--tl-name))",
-                        width: "var(--tl-client)",
-                        maxWidth: "var(--tl-client)",
-                      }}
-                    >
-                      <MarqueeText text={row.clientName || EMPTY} className="text-navy" />
                     </td>
                     <td
                       className="sticky z-10 max-w-0 overflow-hidden bg-white px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
@@ -962,11 +987,15 @@ export function TimelineGrid({
       {tip && tipRow
         ? createPortal(
             <div
+              ref={tipBoxRef}
               className="pointer-events-none fixed z-[110] max-w-xs rounded-2xl border border-line bg-white px-3 py-2 text-sm text-ink"
               style={{
                 top: tip.top,
                 left: tip.left,
-                transform: tip.place === "right" ? "translateY(-50%)" : "translate(-100%, -50%)",
+                transform:
+                  tip.place === "right"
+                    ? `translate(${tipNudge.x}px, calc(-50% + ${tipNudge.y}px))`
+                    : `translate(calc(-100% + ${tipNudge.x}px), calc(-50% + ${tipNudge.y}px))`,
               }}
             >
               <div className="font-medium">{tipRow.name}</div>
