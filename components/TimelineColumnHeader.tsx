@@ -94,7 +94,7 @@ export function TimelineColumnHeader({
         ? createPortal(
             <div
               ref={menu}
-              className="fixed z-[120] w-56 rounded-2xl border border-line bg-white p-2"
+              className="fixed z-[120] w-56 rounded-2xl border border-line bg-paper p-2"
               style={{ top: pos.top, left: pos.left }}
             >
               <button

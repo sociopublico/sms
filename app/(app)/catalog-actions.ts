@@ -65,6 +65,30 @@ export async function setPersonHidden(personId: string, hidden: boolean) {
   );
 }
 
+function uniqueMessage(error: { code?: string; message: string }, message: string) {
+  return error.code === "23505" ? message : error.message;
+}
+
+export async function renamePerson(personId: string, formData: FormData) {
+  return withAudit(
+    "catalog.rename_person",
+    async () => {
+      const supabase = await assertWrite();
+      const displayName = String(formData.get("display_name") ?? "").trim();
+      if (!displayName) throw new Error("El nombre es obligatorio.");
+      if (displayName.length > 80) throw new Error("El nombre es demasiado largo.");
+      const { error } = await supabase.from("people").update({ display_name: displayName }).eq("id", personId);
+      if (error) throw new Error(uniqueMessage(error, "Ya hay alguien con ese nombre."));
+      revalidatePath("/personas");
+      revalidatePath("/usuarios");
+      revalidatePath("/timeline");
+      revalidatePath("/carga");
+    },
+    formPayload(formData),
+    { type: "person", id: personId },
+  );
+}
+
 export async function upsertRole(formData: FormData) {
   return withAudit(
     "catalog.upsert_role",
@@ -73,13 +97,17 @@ export async function upsertRole(formData: FormData) {
       const id = String(formData.get("id") ?? "");
       const name = String(formData.get("name") ?? "").trim();
       const alwaysOnDuty = formData.get("always_on_duty") === "on";
+      const syncTasks = formData.get("sync_tasks") === "1";
+      const taskIds = [...new Set(formData.getAll("task_ids").map(String).filter(Boolean))];
       if (!name) throw new Error("El nombre es obligatorio.");
+
+      let roleId = id;
       if (id) {
         const { error } = await supabase
           .from("roles")
           .update({ name, always_on_duty: alwaysOnDuty, deleted_at: null })
           .eq("id", id);
-        if (error) throw new Error(error.message);
+        if (error) throw new Error(uniqueMessage(error, "Ya hay un rol con ese nombre."));
       } else {
         const { data: archived } = await supabase
           .from("roles")
@@ -88,17 +116,52 @@ export async function upsertRole(formData: FormData) {
           .not("deleted_at", "is", null)
           .maybeSingle();
         if (archived) {
+          roleId = archived.id;
           const { error } = await supabase
             .from("roles")
             .update({ always_on_duty: alwaysOnDuty, deleted_at: null })
-            .eq("id", archived.id);
+            .eq("id", roleId);
           if (error) throw new Error(error.message);
         } else {
-          const { error } = await supabase.from("roles").insert({ name, always_on_duty: alwaysOnDuty });
+          const { data, error } = await supabase
+            .from("roles")
+            .insert({ name, always_on_duty: alwaysOnDuty })
+            .select("id")
+            .single();
+          if (error) throw new Error(uniqueMessage(error, "Ya hay un rol con ese nombre."));
+          roleId = data.id;
+        }
+      }
+
+      if (syncTasks && roleId) {
+        const { data: existing, error: readError } = await supabase
+          .from("task_roles")
+          .select("task_id")
+          .eq("role_id", roleId);
+        if (readError) throw new Error(readError.message);
+        const current = new Set((existing ?? []).map((row) => row.task_id));
+        const wanted = new Set(taskIds);
+        const add = taskIds.filter((taskId) => !current.has(taskId));
+        const remove = [...current].filter((taskId) => !wanted.has(taskId));
+        if (add.length) {
+          const { error } = await supabase
+            .from("task_roles")
+            .insert(add.map((task_id) => ({ task_id, role_id: roleId })));
+          if (error) throw new Error(error.message);
+        }
+        if (remove.length) {
+          const { error } = await supabase
+            .from("task_roles")
+            .delete()
+            .eq("role_id", roleId)
+            .in("task_id", remove);
           if (error) throw new Error(error.message);
         }
       }
+
       revalidatePath("/roles");
+      revalidatePath("/tareas");
+      revalidatePath("/carga");
     },
     formPayload(formData),
     { type: "role", id: String(formData.get("id") ?? "") || undefined },

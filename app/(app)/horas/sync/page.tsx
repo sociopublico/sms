@@ -1,6 +1,7 @@
 import { requireWriter } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { HoursSyncPanel } from "@/components/HoursSyncPanel";
+import { noticeFromSearchParams, PageNotice } from "@/components/ui/PageNotice";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DRIVE_ROOT_FOLDER_ID } from "@/lib/drive-constants";
 import { monthLabelEs } from "@/lib/toggl-import";
@@ -8,10 +9,11 @@ import { monthLabelEs } from "@/lib/toggl-import";
 export default async function HorasSyncPage({
   searchParams,
 }: {
-  searchParams: Promise<{ connected?: string; error?: string }>;
+  searchParams: Promise<{ connected?: string; error?: string; notice?: string; noticeKind?: string }>;
 }) {
   const session = await requireWriter();
-  const { connected, error } = await searchParams;
+  const { connected, error, notice, noticeKind } = await searchParams;
+  const actionNotice = noticeFromSearchParams({ notice, noticeKind });
   const supabase = await createClient();
   const [{ data: files }, { data: connection }] = await Promise.all([
     supabase
@@ -120,6 +122,9 @@ export default async function HorasSyncPage({
           </a>
         }
       />
+      {actionNotice ? (
+        <PageNotice kind={actionNotice.kind} text={actionNotice.text} clearHref="/horas/sync" />
+      ) : null}
       <HoursSyncPanel
         isAdmin={session.isAdmin}
         driveConnected={Boolean(connection)}

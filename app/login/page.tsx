@@ -32,8 +32,8 @@ export default function LoginPage() {
     const { error: authError, errorCode, description } = readAuthError();
     if (!authError && !description) return;
 
-    const message = messageForAuthError(authError, description);
-    setError(message ?? "No se pudo completar el login.");
+    const message = messageForAuthError(authError, description) ?? "No se pudo completar el login.";
+    queueMicrotask(() => setError(message));
 
     const supabase = createClient();
     void supabase

@@ -19,7 +19,7 @@ export default async function ProtectedLayout({
   const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("person_id, people(display_name)")
+    .select("people(display_name)")
     .eq("id", session.id)
     .maybeSingle();
 

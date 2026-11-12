@@ -30,7 +30,9 @@ export default async function CargaPage({
     supabase.from("person_week_load").select("person_id, week_start, load_count").in("week_start", weekQuery),
     supabase
       .from("person_week_load_detail")
-      .select("person_id, week_start, project_code, workstream_name, task_name, role_name")
+      .select(
+        "person_id, week_start, project_id, project_code, client_name, workstream_id, workstream_name, task_name, role_name, always_on_duty",
+      )
       .in("week_start", weeks),
     supabase.from("roles").select("id, name").is("deleted_at", null).order("name"),
   ]);

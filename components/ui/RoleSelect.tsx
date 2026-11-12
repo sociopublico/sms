@@ -35,7 +35,7 @@ export function RoleSelect({
         <Badge status={value}>{ROLE_LABEL[value]}</Badge>
       </button>
       {open ? (
-        <div className="absolute z-40 mt-1 min-w-40 rounded-2xl border border-line bg-white p-1">
+        <div className="absolute z-40 mt-1 min-w-40 rounded-2xl border border-line bg-paper p-1">
           {ROLE_OPTIONS.map((role) => (
             <button
               key={role}

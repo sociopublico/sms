@@ -44,7 +44,7 @@ function MetaPill({
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-        ok ? "bg-green/15 text-ink" : "bg-danger/10 text-danger"
+        ok ? "bg-green/15 text-ink" : "bg-danger/15 text-ink"
       }`}
     >
       {ok ? okLabel : missingLabel}

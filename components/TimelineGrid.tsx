@@ -1,10 +1,22 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from "react";
-import Link from "next/link";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { addWeeks, formatWeekLabel, isCurrentMonth, STATUS_LABEL, toISODate } from "@/lib/dates";
+import {
+  addWeeks,
+  formatMonthLabel,
+  formatWeekLabel,
+  fullMonthIds,
+  isCurrentMonth,
+  mondaysOfMonth,
+  STATUS_LABEL,
+  TIMELINE_VISIBLE_WEEKS,
+  TIMELINE_WEEK_BUFFER,
+  toISODate,
+  weekRange,
+} from "@/lib/dates";
+import { fetchTasksByWeek, mergeWeekMaps } from "@/lib/timeline-weeks";
 import { setWeekTasks } from "@/app/(app)/project-actions";
 import { MarqueeText } from "@/components/ui/MarqueeText";
 import { AngleIcon } from "@/components/ui/AngleIcon";
@@ -35,9 +47,123 @@ const STATUS_RANK: Record<string, number> = {
 
 const EMPTY = "—";
 const COMPACT_WEEKS = 6;
+const VISIBLE_MONTHS = 6;
+const COMPACT_MONTHS = 4;
+const WIDE_WEEKS = 18;
+const WIDE_MONTHS = 8;
+const DENSITY_KEY = "timeline-density";
 const SCROLL_Y_KEY = "timeline-scroll-y";
 const KEEP_SCROLL_KEY = "timeline-keep-scroll";
 const COLLAPSED_KEY = "timeline-collapsed-projects";
+
+type TimelineDensity = "normal" | "wide";
+
+function loadDensity(): TimelineDensity {
+  if (typeof window === "undefined") return "normal";
+  return window.sessionStorage.getItem(DENSITY_KEY) === "wide" ? "wide" : "normal";
+}
+
+type TimelineMode = "week" | "month";
+type TimelineCol = {
+  id: string;
+  weeks: string[];
+  label: string;
+  current: boolean;
+  tint: boolean;
+};
+
+function buildColumns(weeks: string[], mode: TimelineMode, thisWeek: string): TimelineCol[] {
+  if (mode === "week") {
+    return weeks.map((week) => ({
+      id: week,
+      weeks: [week],
+      label: formatWeekLabel(week),
+      current: week === thisWeek,
+      tint: isCurrentMonth(week),
+    }));
+  }
+  const thisMonth = thisWeek.slice(0, 7);
+  return fullMonthIds(weeks).map((id) => {
+    const [year, month] = id.split("-").map(Number);
+    return {
+      id,
+      weeks: mondaysOfMonth(year, month),
+      label: formatMonthLabel(id),
+      current: id === thisMonth,
+      tint: false,
+    };
+  });
+}
+
+function columnIds(weeks: string[], mode: TimelineMode) {
+  return mode === "month" ? fullMonthIds(weeks) : weeks;
+}
+
+function countSpan(weeks: string[], lists: TimelineTask[][]) {
+  const counts = new Map<string, { task: TimelineTask; seen: Set<string> }>();
+  weeks.forEach((week, index) => {
+    for (const task of lists[index] ?? []) {
+      const hit = counts.get(task.id);
+      if (hit) hit.seen.add(week);
+      else counts.set(task.id, { task, seen: new Set([week]) });
+    }
+  });
+  return [...counts.values()].map(({ task, seen }) => ({ task, count: seen.size }));
+}
+
+function relativeLuminance(color: string) {
+  const hex = color.trim().replace("#", "");
+  const full =
+    hex.length === 3
+      ? hex
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : hex;
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) return 0;
+  const r = parseInt(full.slice(0, 2), 16) / 255;
+  const g = parseInt(full.slice(2, 4), 16) / 255;
+  const b = parseInt(full.slice(4, 6), 16) / 255;
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+function contrastRatio(a: number, b: number) {
+  const [hi, lo] = a > b ? [a, b] : [b, a];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+function contrastText(color: string) {
+  const bg = relativeLuminance(color);
+  const ink = relativeLuminance("#16222f");
+  const white = 1;
+  return contrastRatio(ink, bg) >= contrastRatio(white, bg) ? "#16222f" : "#ffffff";
+}
+
+function TaskPills({ items }: { items: { task: TimelineTask; count: number }[] }) {
+  if (items.length === 0) return <span className="text-line">·</span>;
+  return items.map(({ task, count }) => {
+    const textColor = contrastText(task.color);
+    return (
+      <span
+        key={task.id}
+        title={count > 1 ? `${task.name} · ${count} semanas` : task.name}
+        className="flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-xs"
+        style={{ background: task.color, color: textColor }}
+      >
+        <span className="min-w-0 truncate">{task.name}</span>
+        {count > 1 ? (
+          <span
+            className="shrink-0 rounded px-1 font-medium tabular-nums"
+            style={{ background: textColor === "#ffffff" ? "rgba(0,0,0,0.2)" : "rgba(22,34,47,0.12)" }}
+          >
+            +{count - 1}
+          </span>
+        ) : null}
+      </span>
+    );
+  });
+}
 
 function uniqueSorted(values: string[]) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b, "es"));
@@ -52,12 +178,10 @@ function paramsList(search: URLSearchParams, key: string) {
   return all.filter((value) => value !== NONE);
 }
 
-function sliceWeeks(weeks: string[], thisWeek: string, count: number) {
-  if (weeks.length <= count) return weeks;
-  const i = weeks.indexOf(thisWeek);
-  if (i < 0) return weeks.slice(0, count);
-  const start = Math.min(Math.max(0, i - 2), weeks.length - count);
-  return weeks.slice(start, start + count);
+function indexTasks(rows: TimelineRow[]) {
+  const map: Record<string, Record<string, TimelineTask[]>> = {};
+  for (const row of rows) map[row.id] = row.tasksByWeek;
+  return map;
 }
 
 type ProjectGroup = {
@@ -91,12 +215,14 @@ function unionTasks(lists: TimelineTask[][]) {
 
 export function TimelineGrid({
   weeks,
+  windowStart,
   rows,
   tasks,
   canWrite,
   thisWeek,
 }: {
   weeks: string[];
+  windowStart: string;
   rows: TimelineRow[];
   tasks: TimelineTask[];
   canWrite: boolean;
@@ -109,18 +235,48 @@ export function TimelineGrid({
   const [compact, setCompact] = useState(
     () => typeof window !== "undefined" && window.innerWidth < 1100,
   );
+  const [density, setDensity] = useState<TimelineDensity>(loadDensity);
   const [open, setOpen] = useState<{ ws: string; week: string } | null>(null);
-  const [editorPos, setEditorPos] = useState<{ top: number; left: number } | null>(null);
+  const [editorPos, setEditorPos] = useState<{
+    left: number;
+    top?: number;
+    bottom?: number;
+    maxHeight: number;
+  } | null>(null);
   const [selected, setSelected] = useState<{ ws: string; week: string } | null>(null);
   const [copied, setCopied] = useState<{ ws: string; week: string } | null>(null);
   const [overrides, setOverrides] = useState<Record<string, TimelineTask[]>>({});
   const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
+  const [range, setRange] = useState(weeks);
+  const [cursor, setCursor] = useState(windowStart);
+  const [mode, setMode] = useState<TimelineMode>(searchParams.get("view") === "month" ? "month" : "week");
+  const [shown, setShown] = useState<TimelineMode>(mode);
+  const [monthCursor, setMonthCursor] = useState(windowStart.slice(0, 7));
+  const [modeFx, setModeFx] = useState<"idle" | "out" | "in">("idle");
+  const [weekMap, setWeekMap] = useState(() => indexTasks(rows));
+  const [slide, setSlide] = useState(0);
+  const [animating, setAnimating] = useState(false);
+  const [snap, setSnap] = useState(false);
+  const serverKey = `${windowStart}|${weeks[0] ?? ""}|${weeks[weeks.length - 1] ?? ""}|${rows.map((row) => row.id).join(",")}`;
+  const [syncedKey, setSyncedKey] = useState(serverKey);
+  if (syncedKey !== serverKey) {
+    setSyncedKey(serverKey);
+    setRange(weeks);
+    setCursor(windowStart);
+    setMonthCursor(windowStart.slice(0, 7));
+    setWeekMap(indexTasks(rows));
+    setOverrides({});
+    setSlide(0);
+    setAnimating(false);
+    setSnap(true);
+  }
   const [tip, setTip] = useState<{
     rowId: string;
     week: string;
     top: number;
     left: number;
     place: "left" | "right";
+    vPlace: "center" | "above" | "below";
   } | null>(null);
   const [, startTransition] = useTransition();
   const clipRef = useRef<string[]>([]);
@@ -128,10 +284,20 @@ export function TimelineGrid({
   const rowsRef = useRef(rows);
   const weeksRef = useRef(weeks);
   const overridesRef = useRef(overrides);
+  const weekMapRef = useRef(weekMap);
+  const rangeRef = useRef(range);
+  const cursorRef = useRef(cursor);
+  const extendLocks = useRef({ prev: false, next: false });
+  const animatingRef = useRef(false);
+  const slideDirRef = useRef<1 | -1>(1);
   const tipTimer = useRef<number | null>(null);
-  selectedRef.current = selected;
-  rowsRef.current = rows;
-  overridesRef.current = overrides;
+  const viewRef = useRef(mode);
+  const shownRef = useRef(shown);
+  const monthCursorRef = useRef(monthCursor);
+  const weekAnchorRef = useRef(windowStart);
+  const fxRef = useRef(modeFx);
+  const visibleCountRef = useRef(TIMELINE_VISIBLE_WEEKS);
+  const modeTimer = useRef<number | null>(null);
 
   const sortKey = searchParams.get("sort");
   const sortDir = (searchParams.get("dir") === "desc" ? "desc" : "asc") as SortDir;
@@ -151,8 +317,45 @@ export function TimelineGrid({
     return () => ro.disconnect();
   }, []);
 
-  const visibleWeeks = compact ? sliceWeeks(weeks, thisWeek, COMPACT_WEEKS) : weeks;
-  weeksRef.current = visibleWeeks;
+  const visibleCount =
+    shown === "month"
+      ? compact
+        ? COMPACT_MONTHS
+        : density === "wide"
+          ? WIDE_MONTHS
+          : VISIBLE_MONTHS
+      : compact
+        ? COMPACT_WEEKS
+        : density === "wide"
+          ? WIDE_WEEKS
+          : TIMELINE_VISIBLE_WEEKS;
+
+  function persistDensity(next: TimelineDensity) {
+    setDensity(next);
+    sessionStorage.setItem(DENSITY_KEY, next);
+  }
+  const columns = useMemo(() => buildColumns(range, shown, thisWeek), [range, shown, thisWeek]);
+  const activeId = shown === "week" ? cursor : monthCursor;
+  let cursorIndex = columns.findIndex((col) => col.id === activeId);
+  if (cursorIndex < 0) {
+    cursorIndex = columns.findIndex((col) => col.id >= activeId);
+    if (cursorIndex < 0) cursorIndex = Math.max(columns.length - 1, 0);
+  }
+  const visibleCols = columns.slice(cursorIndex, cursorIndex + visibleCount);
+  const visibleWeeks = visibleCols.flatMap((col) => col.weeks);
+  const sliceStart = Math.max(0, cursorIndex - 1);
+  const sliceEnd = Math.min(columns.length, cursorIndex + visibleCount + 1);
+  const trackCols = columns.slice(sliceStart, sliceEnd);
+  const offsetCols = cursorIndex - sliceStart + slide;
+  const trackStyle: CSSProperties | undefined = trackCols.length
+    ? {
+        width: `${(trackCols.length / visibleCount) * 100}%`,
+        transform: `translateX(-${(offsetCols * 100) / trackCols.length}%)`,
+      }
+    : undefined;
+  const colWidth = `${100 / Math.max(trackCols.length, 1)}%`;
+  const trackClass = `tl-week-track flex h-full items-stretch ${snap ? "tl-week-snap" : ""}`;
+  const fxClass = modeFx === "out" ? "tl-cols-out" : modeFx === "in" ? "tl-cols-in" : "";
 
   useLayoutEffect(() => {
     if (sessionStorage.getItem(KEEP_SCROLL_KEY) !== "1") return;
@@ -166,6 +369,181 @@ export function TimelineGrid({
   function rememberScroll() {
     sessionStorage.setItem(KEEP_SCROLL_KEY, "1");
     sessionStorage.setItem(SCROLL_Y_KEY, String(window.scrollY));
+  }
+
+  async function extendRange(dir: -1 | 1) {
+    const key = dir < 0 ? "prev" : "next";
+    if (extendLocks.current[key]) return;
+    extendLocks.current[key] = true;
+    try {
+      const current = rangeRef.current;
+      if (!current.length) return;
+      const count = TIMELINE_WEEK_BUFFER;
+      const extra =
+        dir < 0
+          ? weekRange(toISODate(addWeeks(new Date(`${current[0]}T00:00:00Z`), -count)), count)
+          : weekRange(toISODate(addWeeks(new Date(`${current[current.length - 1]}T00:00:00Z`), 1)), count);
+      const fetched = await fetchTasksByWeek(extra);
+      setWeekMap((prev) => {
+        const next = mergeWeekMaps(prev, fetched);
+        weekMapRef.current = next;
+        return next;
+      });
+      if (!animatingRef.current) setSnap(true);
+      setRange((prev) => {
+        const have = new Set(prev);
+        const novel = extra.filter((week) => !have.has(week));
+        const next = novel.length === 0 ? prev : dir < 0 ? [...novel, ...prev] : [...prev, ...novel];
+        rangeRef.current = next;
+        return next;
+      });
+    } catch {
+      // Si falla la precarga, el próximo movimiento lo reintenta.
+    } finally {
+      extendLocks.current[key] = false;
+    }
+  }
+
+  function replaceUrl(mutate: (params: URLSearchParams) => void) {
+    const params = new URLSearchParams(window.location.search);
+    mutate(params);
+    const query = params.toString();
+    const url = query ? `${pathname}?${query}` : pathname;
+    const state = window.history.state as { __NA?: unknown; _N?: unknown } | null;
+    if (state?.__NA || state?._N) window.history.replaceState(state, "", url);
+  }
+
+  function applyCursor(next: string) {
+    cursorRef.current = next;
+    setCursor(next);
+    replaceUrl((params) => {
+      params.set("start", next);
+      if (viewRef.current === "month") params.set("view", "month");
+      else params.delete("view");
+    });
+  }
+
+  function applyColumn(id: string) {
+    if (shownRef.current === "month") {
+      monthCursorRef.current = id;
+      setMonthCursor(id);
+      const first = rangeRef.current.find((week) => week.startsWith(id));
+      if (first) applyCursor(first);
+      return;
+    }
+    applyCursor(id);
+  }
+
+  function beginSlide(dir: 1 | -1) {
+    if (animatingRef.current || fxRef.current !== "idle") return;
+    const list = columnIds(rangeRef.current, shownRef.current);
+    const count = visibleCountRef.current;
+    const index = list.indexOf(shownRef.current === "month" ? monthCursorRef.current : cursorRef.current);
+    if (index < 0) return;
+    const next = list[index + dir];
+    const entering = list[dir > 0 ? index + count : index - 1];
+    if (!next || !entering) {
+      void extendRange(dir).then(() => {
+        if (fxRef.current !== "idle") return;
+        const again = columnIds(rangeRef.current, shownRef.current);
+        const at = again.indexOf(shownRef.current === "month" ? monthCursorRef.current : cursorRef.current);
+        const againCount = visibleCountRef.current;
+        if (again[at + dir] && again[dir > 0 ? at + againCount : at - 1]) beginSlide(dir);
+      });
+      return;
+    }
+    const buffer = shownRef.current === "month" ? 3 : 12;
+    const remainingBefore = index + dir;
+    const remainingAfter = list.length - (remainingBefore + count);
+    if (dir < 0 && remainingBefore < buffer) void extendRange(-1);
+    if (dir > 0 && remainingAfter < buffer) void extendRange(1);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      applyColumn(next);
+      return;
+    }
+    slideDirRef.current = dir;
+    animatingRef.current = true;
+    setSlide(dir);
+    setAnimating(true);
+  }
+
+  function finishSlide(event: React.TransitionEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget || event.propertyName !== "transform") return;
+    if (!animatingRef.current) return;
+    const dir = slideDirRef.current;
+    animatingRef.current = false;
+    const list = columnIds(rangeRef.current, shownRef.current);
+    const index = list.indexOf(shownRef.current === "month" ? monthCursorRef.current : cursorRef.current);
+    const next = list[index + dir];
+    setSnap(true);
+    setAnimating(false);
+    setSlide(0);
+    if (next) applyColumn(next);
+  }
+
+  function alignMode(next: TimelineMode) {
+    setSelected(null);
+    setOpen(null);
+    setEditorPos(null);
+    setCopied(null);
+    hideTip();
+    if (next === "month") {
+      weekAnchorRef.current = cursorRef.current;
+      const key = cursorRef.current.slice(0, 7);
+      const ids = fullMonthIds(rangeRef.current);
+      const pick = ids.includes(key) ? key : (ids.find((id) => id >= key) ?? ids[ids.length - 1]);
+      if (pick) {
+        monthCursorRef.current = pick;
+        setMonthCursor(pick);
+      }
+      return;
+    }
+    const anchor = weekAnchorRef.current;
+    if (anchor.startsWith(monthCursorRef.current)) {
+      applyCursor(anchor);
+      return;
+    }
+    const inMonth = rangeRef.current.filter((week) => week.startsWith(monthCursorRef.current));
+    const pick = inMonth.includes(thisWeek) ? thisWeek : inMonth[0];
+    if (pick) applyCursor(pick);
+  }
+
+  function switchMode(next: TimelineMode) {
+    if (next === mode && fxRef.current === "idle") return;
+    if (modeTimer.current) window.clearTimeout(modeTimer.current);
+    animatingRef.current = false;
+    setAnimating(false);
+    setSlide(0);
+    setSnap(true);
+    hideTip();
+    setMode(next);
+    viewRef.current = next;
+    replaceUrl((params) => {
+      if (next === "month") params.set("view", "month");
+      else params.delete("view");
+    });
+    const commit = () => {
+      if (next !== shownRef.current) alignMode(next);
+      shownRef.current = next;
+      setShown(next);
+    };
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      commit();
+      fxRef.current = "idle";
+      setModeFx("idle");
+      return;
+    }
+    fxRef.current = "out";
+    setModeFx("out");
+    modeTimer.current = window.setTimeout(() => {
+      commit();
+      fxRef.current = "in";
+      setModeFx("in");
+      modeTimer.current = window.setTimeout(() => {
+        fxRef.current = "idle";
+        setModeFx("idle");
+      }, 340);
+    }, 230);
   }
 
   function toggleCollapsed(projectId: string) {
@@ -284,20 +662,52 @@ export function TimelineGrid({
   }, [viewRows, sortKey, sortDir]);
 
   const visibleWorkstreams = useMemo(
-    () => groups.flatMap((group) => (collapsed.has(group.projectId) ? [] : group.workstreams)),
+    () =>
+      groups.flatMap((group) =>
+        group.workstreams.length === 1 || !collapsed.has(group.projectId) ? group.workstreams : [],
+      ),
     [groups, collapsed],
   );
 
-  rowsRef.current = visibleWorkstreams;
+  useLayoutEffect(() => {
+    selectedRef.current = selected;
+    overridesRef.current = overrides;
+    weeksRef.current = visibleCols.map((col) => col.id);
+    rowsRef.current = visibleWorkstreams;
+    weekMapRef.current = weekMap;
+    rangeRef.current = range;
+    cursorRef.current = cursor;
+    animatingRef.current = animating;
+    viewRef.current = mode;
+    shownRef.current = shown;
+    monthCursorRef.current = monthCursor;
+    fxRef.current = modeFx;
+    visibleCountRef.current = visibleCount;
+    if (shown === "month" && columns.length > 0 && !columns.some((col) => col.id === monthCursor)) {
+      const next = columns.find((col) => col.id >= monthCursor)?.id ?? columns[columns.length - 1].id;
+      monthCursorRef.current = next;
+      setMonthCursor(next);
+    }
+  });
+
+  useLayoutEffect(() => {
+    if (!snap) return;
+    const id = requestAnimationFrame(() => setSnap(false));
+    return () => cancelAnimationFrame(id);
+  }, [snap]);
 
   function hrefWith(mutate: (params: URLSearchParams) => void) {
     const params = new URLSearchParams(searchParams.toString());
+    params.set("start", cursorRef.current);
+    if (viewRef.current === "month") params.set("view", "month");
+    else params.delete("view");
     mutate(params);
     const q = params.toString();
     return q ? `${pathname}?${q}` : pathname;
   }
 
   function replaceParams(mutate: (params: URLSearchParams) => void) {
+    rememberScroll();
     router.replace(hrefWith(mutate), { scroll: false });
   }
 
@@ -317,37 +727,38 @@ export function TimelineGrid({
     });
   }
 
-  const step = compact ? COMPACT_WEEKS : 8;
-  const prevHref = hrefWith((params) => {
-    params.set("start", toISODate(addWeeks(new Date(`${weeks[0]}T00:00:00Z`), -step)));
-  });
-  const nextHref = hrefWith((params) => {
-    params.set("start", toISODate(addWeeks(new Date(`${weeks[0]}T00:00:00Z`), step)));
-  });
-
   function cellKey(wsId: string, week: string) {
     return `${wsId}:${week}`;
   }
 
-  function groupWeekTasks(group: ProjectGroup, week: string) {
-    return unionTasks(
-      group.workstreams.map((row) => overrides[cellKey(row.id, week)] ?? row.tasksByWeek[week] ?? []),
+  function lookupTasks(wsId: string, week: string) {
+    return overrides[cellKey(wsId, week)] ?? weekMap[wsId]?.[week] ?? [];
+  }
+
+  function spanTasks(wsId: string, span: string[]) {
+    return countSpan(
+      span,
+      span.map((week) => lookupTasks(wsId, week)),
+    );
+  }
+
+  function groupSpanTasks(group: ProjectGroup, span: string[]) {
+    return countSpan(
+      span,
+      span.map((week) => unionTasks(group.workstreams.map((row) => lookupTasks(row.id, week)))),
     );
   }
 
   function cellTasks(wsId: string, week: string) {
-    return (
-      overridesRef.current[cellKey(wsId, week)] ??
-      rowsRef.current.find((row) => row.id === wsId)?.tasksByWeek[week] ??
-      []
-    );
+    return overridesRef.current[cellKey(wsId, week)] ?? weekMapRef.current[wsId]?.[week] ?? [];
   }
 
   function rowStages(row: TimelineRow) {
     const seen = new Map<string, TimelineTask>();
-    const weekSet = new Set([...Object.keys(row.tasksByWeek), ...visibleWeeks]);
+    const byWeek = weekMap[row.id] ?? {};
+    const weekSet = new Set([...Object.keys(byWeek), ...visibleWeeks]);
     for (const week of weekSet) {
-      const list = overrides[cellKey(row.id, week)] ?? row.tasksByWeek[week] ?? [];
+      const list = overrides[cellKey(row.id, week)] ?? byWeek[week] ?? [];
       for (const task of list) seen.set(task.id, task);
     }
     return [...seen.values()];
@@ -372,7 +783,9 @@ export function TimelineGrid({
   function copySelected() {
     const cell = selectedRef.current;
     if (!cell) return;
-    const ids = cellTasks(cell.ws, cell.week).map((task) => task.id);
+    const [spanYear, spanMonth] = cell.week.split("-").map(Number);
+    const span = cell.week.length === 7 ? mondaysOfMonth(spanYear, spanMonth) : [cell.week];
+    const ids = [...new Set(span.flatMap((week) => cellTasks(cell.ws, week).map((task) => task.id)))];
     clipRef.current = ids;
     setCopied(cell);
     const names = ids
@@ -384,8 +797,8 @@ export function TimelineGrid({
 
   function pasteSelected() {
     const cell = selectedRef.current;
-    if (!cell || !canWrite) return;
-    let ids = clipRef.current;
+    if (!cell || !canWrite || shownRef.current !== "week") return;
+    const ids = clipRef.current;
     void navigator.clipboard
       .readText()
       .then((raw) => {
@@ -434,7 +847,7 @@ export function TimelineGrid({
 
   function clearSelected(moveLeft: boolean) {
     const cell = selectedRef.current;
-    if (!cell || !canWrite) return;
+    if (!cell || !canWrite || shownRef.current !== "week") return;
     saveCell(cell.ws, cell.week, []);
     if (moveLeft) moveSelected(0, -1);
   }
@@ -451,12 +864,24 @@ export function TimelineGrid({
     tipTimer.current = window.setTimeout(() => {
       const r = el.getBoundingClientRect();
       const place: "left" | "right" = window.innerWidth - r.right > 240 ? "right" : "left";
+      const tipH = 180;
+      const midY = r.top + r.height / 2;
+      let vPlace: "center" | "above" | "below" = "center";
+      let top = midY;
+      if (midY + tipH / 2 > window.innerHeight - 8) {
+        vPlace = "above";
+        top = r.top - 8;
+      } else if (midY - tipH / 2 < 8) {
+        vPlace = "below";
+        top = r.bottom + 8;
+      }
       setTip({
         rowId,
         week,
-        top: r.top + r.height / 2,
+        top,
         left: place === "right" ? r.right + 8 : r.left - 8,
         place,
+        vPlace,
       });
     }, 1000);
   }
@@ -484,7 +909,7 @@ export function TimelineGrid({
           event.preventDefault();
           copySelected();
         }
-        if ((event.key === "v" || event.key === "V") && canWrite) {
+        if ((event.key === "v" || event.key === "V") && canWrite && shownRef.current === "week") {
           if (!selectedRef.current) return;
           event.preventDefault();
           pasteSelected();
@@ -542,16 +967,19 @@ export function TimelineGrid({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  useEffect(() => () => hideTip(), []);
+  useEffect(
+    () => () => {
+      hideTip();
+      if (modeTimer.current) window.clearTimeout(modeTimer.current);
+    },
+    [],
+  );
 
   const tipRow = tip ? viewRows.find((row) => row.id === tip.rowId) : null;
   const tipStages = tipRow ? rowStages(tipRow) : [];
-  const tipWeekTasks = tipRow && tip ? (overrides[cellKey(tipRow.id, tip.week)] ?? tipRow.tasksByWeek[tip.week] ?? []) : [];
-  const openTasks = open
-    ? (overrides[cellKey(open.ws, open.week)] ??
-      viewRows.find((row) => row.id === open.ws)?.tasksByWeek[open.week] ??
-      [])
-    : [];
+  const tipCol = tip ? columns.find((col) => col.id === tip.week) : null;
+  const tipItems = tipRow && tipCol ? spanTasks(tipRow.id, tipCol.weeks) : [];
+  const openTasks = open ? lookupTasks(open.ws, open.week) : [];
 
   const vars = compact
     ? {
@@ -582,16 +1010,61 @@ export function TimelineGrid({
         <button
           type="button"
           className="text-cyan hover:underline"
-          onClick={() => persistCollapsed(new Set(groups.map((group) => group.projectId)))}
+          onClick={() =>
+            persistCollapsed(
+              new Set(groups.filter((group) => group.workstreams.length > 1).map((group) => group.projectId)),
+            )
+          }
         >
           Cerrar todos
         </button>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {!compact ? (
+            <button
+              type="button"
+              aria-pressed={density === "wide"}
+              onClick={() => persistDensity(density === "wide" ? "normal" : "wide")}
+              className={`rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+                density === "wide"
+                  ? "border-navy bg-navy text-white"
+                  : "border-line bg-paper text-muted hover:text-navy"
+              }`}
+              title={density === "wide" ? "Volver a 12 semanas / 6 meses" : "Ver más columnas"}
+            >
+              Más columnas
+            </button>
+          ) : null}
+          <div role="group" aria-label="Vista del timeline" className="relative grid grid-cols-2 rounded-full border border-line bg-paper p-0.5 text-sm font-medium">
+          <span
+            aria-hidden
+            className="absolute bottom-0.5 left-0.5 top-0.5 w-[calc(50%-0.125rem)] rounded-full bg-navy transition-transform duration-300 ease-[cubic-bezier(0.22,0.8,0.3,1)]"
+            style={{ transform: mode === "month" ? "translateX(100%)" : "translateX(0)" }}
+          />
+          <button
+            type="button"
+            aria-pressed={mode === "week"}
+            onClick={() => switchMode("week")}
+            className={`relative z-10 rounded-full px-3 py-1 transition-colors duration-300 ${mode === "week" ? "text-white" : "text-muted hover:text-navy"}`}
+          >
+            Semana
+          </button>
+          <button
+            type="button"
+            aria-pressed={mode === "month"}
+            onClick={() => switchMode("month")}
+            className={`relative z-10 rounded-full px-3 py-1 transition-colors duration-300 ${mode === "month" ? "text-white" : "text-muted hover:text-navy"}`}
+          >
+            Mes
+          </button>
+          </div>
+        </div>
       </div>
+      <div className="-mx-1 overflow-x-auto">
       <table className={`w-full table-fixed border-collapse text-sm ${compact ? "" : "min-w-[72rem]"}`}>
         <thead>
           <tr>
             <th
-              className="sticky left-0 top-16 z-50 border-b border-line bg-white px-1 py-2.5 shadow-[1px_0_0_0_var(--line)]"
+              className="sticky left-0 top-16 z-50 border-b border-line bg-paper px-1 py-2.5 shadow-[1px_0_0_0_var(--line)]"
               style={{ width: "var(--tl-status)", maxWidth: "var(--tl-status)" }}
             >
               <TimelineColumnHeader
@@ -606,7 +1079,7 @@ export function TimelineGrid({
               />
             </th>
             <th
-              className="sticky top-16 z-50 border-b border-line bg-white px-2 py-2.5 shadow-[1px_0_0_0_var(--line)]"
+              className="sticky top-16 z-50 border-b border-line bg-paper px-2 py-2.5 shadow-[1px_0_0_0_var(--line)]"
               style={{
                 left: "var(--tl-status)",
                 width: "var(--tl-name)",
@@ -624,7 +1097,7 @@ export function TimelineGrid({
               />
             </th>
             <th
-              className="sticky top-16 z-50 border-b border-line bg-white px-2 py-2.5 shadow-[1px_0_0_0_var(--line)]"
+              className="sticky top-16 z-50 border-b border-line bg-paper px-2 py-2.5 shadow-[1px_0_0_0_var(--line)]"
               style={{
                 left: "calc(var(--tl-status) + var(--tl-name))",
                 width: "var(--tl-client)",
@@ -642,7 +1115,7 @@ export function TimelineGrid({
               />
             </th>
             <th
-              className="sticky top-16 z-50 border-b border-line bg-white px-2 py-2.5 shadow-[1px_0_0_0_var(--line)]"
+              className="sticky top-16 z-50 border-b border-line bg-paper px-2 py-2.5 shadow-[1px_0_0_0_var(--line)]"
               style={{
                 left: "calc(var(--tl-status) + var(--tl-name) + var(--tl-client))",
                 width: "var(--tl-pm)",
@@ -659,50 +1132,60 @@ export function TimelineGrid({
                 onFilter={(values) => setFilter("pm", values)}
               />
             </th>
-            <th className="sticky top-16 z-40 w-8 border-b border-line bg-white p-0">
+            <th className="sticky top-16 z-40 w-8 border-b border-line bg-paper p-0">
               <span className="invisible">
                 <AngleIcon direction="left" />
               </span>
-              <Link href={prevHref} scroll={false} onClick={rememberScroll} className="absolute inset-0 flex items-center justify-center text-navy hover:text-cyan" aria-label="Semanas anteriores">
+              <button type="button" onClick={() => beginSlide(-1)} className="absolute inset-0 flex items-center justify-center text-navy hover:text-cyan" aria-label={shown === "month" ? "Mes anterior" : "Semana anterior"}>
                 <AngleIcon direction="left" />
-              </Link>
+              </button>
             </th>
-            {visibleWeeks.map((week) => {
-              const current = week === thisWeek;
-              const month = isCurrentMonth(week);
-              return (
-                <th
-                  key={week}
-                  className={`sticky top-16 z-40 border-b border-line px-1 py-2.5 font-medium ${
-                    current ? "bg-[#d9eef6] text-cyan" : month ? "bg-canvas text-ink" : "bg-white text-muted"
-                  }`}
-                >
-                  {formatWeekLabel(week)}
-                  {current ? <div className="text-[11px] font-normal">hoy</div> : null}
-                </th>
-              );
-            })}
-            <th className="sticky top-16 z-40 w-8 border-b border-line bg-white p-0">
+            <th className="sticky top-16 z-40 border-b border-line bg-paper p-0">
+              <div className="invisible flex flex-col items-center px-1 py-2.5 font-medium" aria-hidden>
+                00/00
+                <div className="text-xs font-normal">hoy</div>
+              </div>
+              <div className="absolute inset-0 overflow-hidden">
+                <div className={`h-full ${fxClass}`}>
+                  <div className={trackClass} style={trackStyle} onTransitionEnd={finishSlide}>
+                    {trackCols.map((col) => (
+                      <div
+                        key={col.id}
+                        className={`flex h-full min-w-0 shrink-0 flex-col items-center justify-center px-1 text-center font-medium capitalize ${
+                          col.current ? "bg-[#d9eef6] text-cyan" : col.tint ? "bg-canvas text-ink" : "bg-paper text-muted"
+                        }`}
+                        style={{ width: colWidth }}
+                      >
+                        {col.label}
+                        {col.current ? <div className="text-xs font-normal normal-case">hoy</div> : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </th>
+            <th className="sticky top-16 z-40 w-8 border-b border-line bg-paper p-0">
               <span className="invisible">
                 <AngleIcon direction="right" />
               </span>
-              <Link href={nextHref} scroll={false} onClick={rememberScroll} className="absolute inset-0 flex items-center justify-center text-navy hover:text-cyan" aria-label="Semanas siguientes">
+              <button type="button" onClick={() => beginSlide(1)} className="absolute inset-0 flex items-center justify-center text-navy hover:text-cyan" aria-label={shown === "month" ? "Mes siguiente" : "Semana siguiente"}>
                 <AngleIcon direction="right" />
-              </Link>
+              </button>
             </th>
           </tr>
         </thead>
         <tbody>
           {groups.length === 0 ? (
             <tr>
-              <td colSpan={visibleWeeks.length + 6} className="px-4 py-8 text-muted">
+              <td colSpan={7} className="px-4 py-8 text-muted">
                 No hay workstreams con esos filtros.
               </td>
             </tr>
           ) : (
             groups.flatMap((group) => {
-              const openGroup = !collapsed.has(group.projectId);
-              const header = (
+              const solo = group.workstreams.length === 1;
+              const openGroup = solo || !collapsed.has(group.projectId);
+              const header = solo ? null : (
                 <tr key={`p-${group.projectId}`} className="border-t border-line bg-canvas">
                   <td
                     className="sticky left-0 z-10 overflow-hidden bg-canvas px-1 py-2 text-center shadow-[1px_0_0_0_var(--line)]"
@@ -718,30 +1201,39 @@ export function TimelineGrid({
                       maxWidth: "var(--tl-name)",
                     }}
                   >
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      aria-expanded={openGroup}
-                      onClick={() => toggleCollapsed(group.projectId)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          toggleCollapsed(group.projectId);
-                        }
-                      }}
-                      className="flex w-full min-w-0 cursor-pointer items-start gap-1.5 text-left"
-                    >
-                      <AngleIcon
-                        direction={openGroup ? "down" : "right"}
-                        className="mt-1 text-muted"
-                      />
+                    <div className="flex w-full min-w-0 items-start gap-1.5 text-left">
+                      <button
+                        type="button"
+                        aria-expanded={openGroup}
+                        aria-label={`${openGroup ? "Cerrar" : "Abrir"} ${group.clientName || "proyecto"}`}
+                        onClick={() => toggleCollapsed(group.projectId)}
+                        className="mt-1 shrink-0 text-muted hover:text-navy"
+                      >
+                        <AngleIcon direction={openGroup ? "down" : "right"} />
+                      </button>
                       <span className="min-w-0 flex-1">
-                        <MarqueeText
-                          text={group.clientName || EMPTY}
-                          className="text-base font-medium text-ink"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => toggleCollapsed(group.projectId)}
+                          className="block w-full min-w-0 text-left"
+                        >
+                          <MarqueeText
+                            text={group.clientName || EMPTY}
+                            className="text-base font-medium text-ink"
+                          />
+                        </button>
                         <div className="truncate text-muted">
-                          {group.projectCode ? `${group.projectCode} · ` : ""}
+                          {group.projectCode ? (
+                            <>
+                              <a
+                                href={`/proyectos/${group.projectId}`}
+                                className="hover:text-cyan hover:underline"
+                              >
+                                {group.projectCode}
+                              </a>
+                              {" · "}
+                            </>
+                          ) : null}
                           {group.workstreams.length}{" "}
                           {group.workstreams.length === 1 ? "workstream" : "workstreams"}
                         </div>
@@ -769,68 +1261,72 @@ export function TimelineGrid({
                     <MarqueeText text={group.pms.join(", ") || EMPTY} className="text-navy" />
                   </td>
                   <td className="bg-canvas" />
-                  {visibleWeeks.map((week) => {
-                    const current = week === thisWeek;
-                    const summary = openGroup ? [] : groupWeekTasks(group, week);
-                    return (
-                      <td
-                        key={week}
-                        className={`bg-canvas px-0.5 py-1 align-top ${current ? "bg-cyan/5" : ""}`}
-                      >
-                        {openGroup ? (
-                          <div className="min-h-8" />
-                        ) : (
-                          <div className="flex min-h-10 min-w-0 flex-col gap-0.5 px-1 py-1">
-                            {summary.length === 0 ? (
-                              <span className="text-line">·</span>
-                            ) : (
-                              summary.map((task) => (
-                                <span
-                                  key={task.id}
-                                  className="truncate rounded-md px-1 py-0.5 text-xs text-white"
-                                  style={{ background: task.color }}
-                                >
-                                  {task.name}
-                                </span>
-                              ))
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    );
-                  })}
+                  <td className="bg-canvas p-0 align-top">
+                    <div className="overflow-hidden">
+                      <div className={fxClass}>
+                        <div className={trackClass} style={trackStyle}>
+                          {trackCols.map((col) => {
+                            const summary = openGroup ? [] : groupSpanTasks(group, col.weeks);
+                            return (
+                              <div
+                                key={col.id}
+                                className={`flex min-w-0 shrink-0 flex-col px-0.5 py-1 ${col.current ? "bg-cyan/5" : ""}`}
+                                style={{ width: colWidth }}
+                              >
+                                {openGroup ? (
+                                  <div className="min-h-8" />
+                                ) : (
+                                  <div className="flex min-h-10 min-w-0 flex-1 flex-col gap-0.5 px-1 py-1">
+                                    <TaskPills items={summary} />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
                   <td className="bg-canvas" />
                 </tr>
               );
-              if (!openGroup) return [header];
-              return [
-                header,
-                ...group.workstreams.map((row) => (
+              const body = openGroup
+                ? group.workstreams.map((row) => (
                   <tr key={row.id} className="border-t border-line">
                     <td
-                      className="sticky left-0 z-10 overflow-hidden bg-white px-1 py-2 text-center shadow-[1px_0_0_0_var(--line)]"
+                      className="sticky left-0 z-10 overflow-hidden bg-paper px-1 py-2 text-center shadow-[1px_0_0_0_var(--line)]"
                       style={{ width: "var(--tl-status)", maxWidth: "var(--tl-status)" }}
                     >
                       <StatusGlyph status={row.status} />
                     </td>
                     <td
-                      className="sticky z-10 max-w-0 overflow-hidden bg-white px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
+                      className="sticky z-10 max-w-0 overflow-hidden bg-paper px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
                       style={{
                         left: "var(--tl-status)",
                         width: "var(--tl-name)",
                         maxWidth: "var(--tl-name)",
                       }}
                     >
-                      <div className="ml-3 border-l-2 border-line pl-5">
+                      <div className={solo ? "min-w-0" : "ml-3 border-l-2 border-line pl-5"}>
                         <MarqueeText
                           href={`/workstreams/${row.id}`}
                           text={row.name}
                           className="text-base font-medium text-ink hover:text-cyan"
                         />
+                        {solo && row.projectCode ? (
+                          <div className="truncate text-muted">
+                            <a
+                              href={`/proyectos/${row.projectId}`}
+                              className="hover:text-cyan hover:underline"
+                            >
+                              {row.projectCode}
+                            </a>
+                          </div>
+                        ) : null}
                       </div>
                     </td>
                     <td
-                      className="sticky z-10 max-w-0 overflow-hidden bg-white px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
+                      className="sticky z-10 max-w-0 overflow-hidden bg-paper px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
                       style={{
                         left: "calc(var(--tl-status) + var(--tl-name))",
                         width: "var(--tl-client)",
@@ -840,7 +1336,7 @@ export function TimelineGrid({
                       <MarqueeText text={row.clientName || EMPTY} className="text-navy" />
                     </td>
                     <td
-                      className="sticky z-10 max-w-0 overflow-hidden bg-white px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
+                      className="sticky z-10 max-w-0 overflow-hidden bg-paper px-2 py-2 shadow-[1px_0_0_0_var(--line)]"
                       style={{
                         left: "calc(var(--tl-status) + var(--tl-name) + var(--tl-client))",
                         width: "var(--tl-pm)",
@@ -850,93 +1346,119 @@ export function TimelineGrid({
                       <MarqueeText text={row.pms.join(", ") || EMPTY} className="text-navy" />
                     </td>
                     <td />
-                    {visibleWeeks.map((week) => {
-                      const cellList = overrides[cellKey(row.id, week)] ?? row.tasksByWeek[week] ?? [];
-                      const isOpen = open?.ws === row.id && open.week === week;
-                      const current = week === thisWeek;
-                      return (
-                        <td
-                          key={week}
-                          className={`relative px-0.5 py-1 align-top ${current ? "bg-cyan/5" : ""}`}
-                        >
-                          <button
-                            type="button"
-                            data-tl-cell={`${row.id}::${week}`}
-                            onMouseEnter={(event) => scheduleTip(row.id, week, event.currentTarget)}
-                            onMouseLeave={hideTip}
-                            onClick={(event) => {
-                              hideTip();
-                              setSelected({ ws: row.id, week });
-                              if (!canWrite) return;
-                              if (isOpen) {
-                                setOpen(null);
-                                setEditorPos(null);
-                                return;
-                              }
-                              const r = event.currentTarget.getBoundingClientRect();
-                              const left = window.innerWidth - r.left < 220 ? Math.max(8, r.right - 208) : r.left;
-                              setEditorPos({ top: r.bottom + 4, left });
-                              setOpen({ ws: row.id, week });
-                            }}
-                            className={`flex min-h-10 w-full min-w-0 flex-col gap-0.5 rounded-lg border px-1 py-1 pb-3 text-left focus:outline-none ${
-                              isOpen || (selected?.ws === row.id && selected.week === week)
-                                ? copied?.ws === row.id && copied.week === week
-                                  ? "border-dashed border-cyan"
-                                  : "border-cyan"
-                                : copied?.ws === row.id && copied.week === week
-                                  ? "border-dashed border-cyan/60"
-                                  : "border-transparent hover:border-line"
-                            }`}
-                          >
-                            {cellList.length === 0 ? (
-                              <span className="text-line">·</span>
-                            ) : (
-                              cellList.map((task) => (
-                                <span
-                                  key={task.id}
-                                  className="truncate rounded-md px-1 py-0.5 text-xs text-white"
-                                  style={{ background: task.color }}
+                    <td className="p-0 align-top">
+                      <div className="overflow-hidden">
+                        <div className={fxClass}>
+                          <div className={trackClass} style={trackStyle}>
+                            {trackCols.map((col) => {
+                              const cellList = spanTasks(row.id, col.weeks);
+                              const isOpen = shown === "week" && open?.ws === row.id && open.week === col.id;
+                              return (
+                                <div
+                                  key={col.id}
+                                  className={`flex min-w-0 shrink-0 flex-col px-0.5 py-1 ${col.current ? "bg-cyan/5" : ""}`}
+                                  style={{ width: colWidth }}
                                 >
-                                  {task.name}
-                                </span>
-                              ))
-                            )}
-                          </button>
-                        </td>
-                      );
-                    })}
+                                  <button
+                                    type="button"
+                                    data-tl-cell={`${row.id}::${col.id}`}
+                                    onMouseEnter={(event) => scheduleTip(row.id, col.id, event.currentTarget)}
+                                    onMouseLeave={hideTip}
+                                    onClick={(event) => {
+                                      hideTip();
+                                      setSelected({ ws: row.id, week: col.id });
+                                      if (shown !== "week" || !canWrite) return;
+                                      if (isOpen) {
+                                        setOpen(null);
+                                        setEditorPos(null);
+                                        return;
+                                      }
+                                      const r = event.currentTarget.getBoundingClientRect();
+                                      const left = window.innerWidth - r.left < 220 ? Math.max(8, r.right - 208) : r.left;
+                                      const spaceBelow = window.innerHeight - r.bottom - 8;
+                                      const spaceAbove = r.top - 8;
+                                      const editorH = 224;
+                                      if (spaceBelow >= Math.min(editorH, 160) || spaceBelow >= spaceAbove) {
+                                        setEditorPos({
+                                          top: r.bottom + 4,
+                                          left,
+                                          maxHeight: Math.min(editorH, Math.max(120, spaceBelow)),
+                                        });
+                                      } else {
+                                        setEditorPos({
+                                          bottom: window.innerHeight - r.top + 4,
+                                          left,
+                                          maxHeight: Math.min(editorH, Math.max(120, spaceAbove)),
+                                        });
+                                      }
+                                      setOpen({ ws: row.id, week: col.id });
+                                    }}
+                                    className={`flex h-full min-h-10 w-full min-w-0 flex-1 flex-col gap-0.5 rounded-lg border px-1 py-1 pb-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan ${
+                                      isOpen || (selected?.ws === row.id && selected.week === col.id)
+                                        ? copied?.ws === row.id && copied.week === col.id
+                                          ? "border-dashed border-cyan"
+                                          : "border-cyan"
+                                        : copied?.ws === row.id && copied.week === col.id
+                                          ? "border-dashed border-cyan/60"
+                                          : "border-transparent hover:border-line"
+                                    }`}
+                                  >
+                                    <TaskPills items={cellList} />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
                     <td />
                   </tr>
-                )),
-              ];
+                ))
+                : [];
+              if (!header) return body;
+              if (!openGroup) return [header];
+              return [header, ...body];
             })
           )}
         </tbody>
       </table>
+      </div>
       {tip && tipRow
         ? createPortal(
             <div
-              className="pointer-events-none fixed z-[110] max-w-xs rounded-2xl border border-line bg-white px-3 py-2 text-sm text-ink"
+              className="pointer-events-none fixed z-[110] max-w-xs rounded-2xl border border-line bg-paper px-3 py-2 text-sm text-ink"
               style={{
                 top: tip.top,
                 left: tip.left,
-                transform: tip.place === "right" ? "translateY(-50%)" : "translate(-100%, -50%)",
+                transform: [
+                  tip.place === "right" ? "translateX(0)" : "translateX(-100%)",
+                  tip.vPlace === "center" ? "translateY(-50%)" : tip.vPlace === "above" ? "translateY(-100%)" : "translateY(0)",
+                ].join(" "),
               }}
             >
               <div className="font-medium">{tipRow.name}</div>
-              {tipWeekTasks.length ? (
+              {tipItems.length ? (
                 <ul className="mt-1 space-y-0.5">
-                  {tipWeekTasks.map((task) => (
+                  {tipItems.map(({ task, count }) => (
                     <li key={task.id} className="flex items-center gap-2">
                       <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: task.color }} />
-                      {task.name}
+                      <span className="min-w-0">{task.name}</span>
+                      {shown === "month" ? (
+                        <span className="shrink-0 text-muted">
+                          {count} {count === 1 ? "semana" : "semanas"}
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <div className="mt-1 text-muted">Sin etapas esta semana</div>
+                <div className="mt-1 text-muted">{shown === "month" ? "Sin etapas este mes" : "Sin etapas esta semana"}</div>
               )}
-              {tipStages.length && tipStages.length !== tipWeekTasks.length ? (
+              {shown === "month" && canWrite ? (
+                <div className="mt-2 text-muted">Para editar, pasá a la vista por semana.</div>
+              ) : null}
+              {shown === "week" && tipStages.length && tipStages.length !== tipItems.length ? (
                 <div className="mt-2 border-t border-line pt-2">
                   <div className="text-muted">Activas en el proyecto</div>
                   <ul className="mt-1 space-y-0.5">
@@ -957,8 +1479,13 @@ export function TimelineGrid({
         ? createPortal(
             <div
               data-tl-editor
-              className="fixed z-[120] max-h-56 w-52 overflow-auto rounded-2xl border border-line bg-white p-3"
-              style={{ top: editorPos.top, left: editorPos.left }}
+              className="fixed z-[120] w-52 overflow-auto rounded-2xl border border-line bg-paper p-3"
+              style={{
+                top: editorPos.top,
+                bottom: editorPos.bottom,
+                left: editorPos.left,
+                maxHeight: editorPos.maxHeight,
+              }}
             >
               {tasks.map((task) => {
                 const checked = openTasks.some((t) => t.id === task.id);

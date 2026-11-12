@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { addAssignment, removeAssignment, updateWorkstream, updateWorkstreamStatus } from "../../project-actions";
-import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { ConfirmDelete } from "@/components/ui/ConfirmDelete";
 import { Field, fieldControlClass } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusSelect } from "@/components/ui/StatusSelect";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 
 export default async function WorkstreamPage({
   params,
@@ -40,15 +41,29 @@ export default async function WorkstreamPage({
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <PageHeader
-        kicker={clientName}
-        title={ws.name}
-        description={proj?.code}
+        kicker="Workstream"
+        title={clientName || ws.name}
+        description={
+          proj?.id
+            ? `${ws.name}${proj.code ? ` · ${proj.code}` : ""}`
+            : ws.name
+        }
         actions={
-          <StatusSelect
-            value={ws.status}
-            canWrite={session.canWrite}
-            onChange={updateWorkstreamStatus.bind(null, ws.id)}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {proj?.id ? (
+              <Link
+                href={`/proyectos/${proj.id}`}
+                className="rounded-full border border-line bg-paper px-3 py-1.5 text-sm text-navy hover:border-cyan hover:text-cyan"
+              >
+                Ir al proyecto
+              </Link>
+            ) : null}
+            <StatusSelect
+              value={ws.status}
+              canWrite={session.canWrite}
+              onChange={updateWorkstreamStatus.bind(null, ws.id)}
+            />
+          </div>
         }
       />
 
@@ -67,9 +82,7 @@ export default async function WorkstreamPage({
                 <option value="finalizado">Finalizado</option>
               </select>
             </Field>
-            <Button type="submit" variant="primary">
-              Guardar
-            </Button>
+            <SubmitButton variant="primary">Guardar</SubmitButton>
           </form>
         </Card>
       ) : (
@@ -92,9 +105,17 @@ export default async function WorkstreamPage({
                   <span className="font-medium text-ink">{personName}</span>
                   <span className="text-muted">{roleName}</span>
                   {session.canWrite ? (
-                    <form action={removeAssignment.bind(null, asg.id, ws.id)} className="ml-auto">
-                      <button className="text-sm text-navy hover:text-cyan">Quitar</button>
-                    </form>
+                    <div className="ml-auto">
+                      <ConfirmDelete
+                        label={personName ?? "asignación"}
+                        title={`¿Quitar a ${personName ?? "esta persona"}?`}
+                        description="Se elimina la asignación de este workstream."
+                        confirmLabel="Quitar"
+                        triggerLabel="Quitar"
+                        triggerClassName="text-sm text-navy hover:text-cyan"
+                        action={removeAssignment.bind(null, asg.id, ws.id)}
+                      />
+                    </div>
                   ) : null}
                 </Card>
               </li>
@@ -125,21 +146,14 @@ export default async function WorkstreamPage({
                   ))}
                 </select>
               </Field>
-              <Button type="submit" variant="primary">
+              <SubmitButton variant="primary" pendingLabel="Asignando…">
                 Asignar
-              </Button>
+              </SubmitButton>
             </form>
           </Card>
         ) : null}
       </section>
 
-      {proj?.id ? (
-        <p className="text-sm text-muted">
-          <Link href={`/proyectos/${proj.id}`} className="hover:text-cyan">
-            Volver al proyecto
-          </Link>
-        </p>
-      ) : null}
     </div>
   );
 }

@@ -46,6 +46,7 @@ export default async function ProjectDetailPage({
   if (!project) notFound();
   const client = project.clients as { name: string } | { name: string }[] | null;
   const clientName = Array.isArray(client) ? client[0]?.name : client?.name;
+  const unmatchedTruncated = (unmatchedRows ?? []).length >= 2000;
 
   const unmatchedMap = new Map<
     string,
@@ -134,6 +135,7 @@ export default async function ProjectDetailPage({
           clientHint: row.client_hint,
         }))}
         unmatched={unmatched}
+        unmatchedTruncated={unmatchedTruncated}
       />
 
       <section>

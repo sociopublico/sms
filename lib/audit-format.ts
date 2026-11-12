@@ -10,6 +10,7 @@ const FIELD_LABEL: Record<string, string> = {
   rol: "Rol",
   cliente: "Cliente",
   nombre: "Nombre",
+  display_name: "Nombre",
   id: "ID",
   code: "ID",
   estado: "Estado",

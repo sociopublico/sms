@@ -32,7 +32,7 @@ export function StatusSelect({
         <Badge status={value}>{STATUS_LABEL[value] ?? value}</Badge>
       </button>
       {open ? (
-        <div className="absolute z-40 mt-1 min-w-40 rounded-2xl border border-line bg-white p-1">
+        <div className="absolute z-40 mt-1 min-w-40 rounded-2xl border border-line bg-paper p-1">
           {STATUS_OPTIONS.map((status) => (
             <button
               key={status}

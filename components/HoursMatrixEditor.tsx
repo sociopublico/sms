@@ -5,6 +5,8 @@ import {
   updatePersonMonthHours,
   updatePersonProjectBudget,
 } from "@/app/(app)/hours-actions";
+import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { parseDurationToHours } from "@/lib/hours-sheet";
 import { formatHoursClock } from "@/lib/toggl-import";
 
@@ -40,9 +42,12 @@ export function HoursMatrixEditor({
 
   if (!projects.length) {
     return (
-      <p className="rounded-xl border border-line bg-paper px-4 py-8 text-center text-sm text-muted">
-        No hay horas cargadas todavía. Importá el sheet desde Drive o Sync CSV.
-      </p>
+      <EmptyState
+        title="No hay horas cargadas todavía"
+        description="Importá el sheet desde Drive o Sync CSV."
+        actionHref="/horas/sync"
+        actionLabel="Ir a Sync CSV"
+      />
     );
   }
 
@@ -83,7 +88,7 @@ export function HoursMatrixEditor({
               }`}
             >
               <span
-                className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                className={`absolute top-0.5 h-6 w-6 rounded-full bg-paper shadow transition-transform ${
                   editActuals ? "translate-x-5" : "translate-x-0.5"
                 }`}
               />
@@ -96,9 +101,9 @@ export function HoursMatrixEditor({
 
       <div className="overflow-auto rounded-xl border border-line bg-paper">
         <table className="min-w-full border-collapse text-sm">
-          <thead className="sticky top-0 z-10 bg-white">
+          <thead className="sticky top-0 z-10 bg-paper">
             <tr className="border-b border-line text-left text-muted">
-              <th className="sticky left-0 z-20 bg-white px-3 py-2 font-medium">Cliente / Proyecto</th>
+              <th className="sticky left-0 z-20 bg-paper px-3 py-2 font-medium">Cliente / Proyecto</th>
               <th className="px-3 py-2 font-medium">Equipo</th>
               <th className="px-3 py-2 font-medium tabular-nums">PROY</th>
               <th className="px-3 py-2 font-medium tabular-nums">REAL</th>
@@ -133,7 +138,7 @@ export function HoursMatrixEditor({
             role="dialog"
             aria-modal="true"
             aria-labelledby="hours-edit-title"
-            className="w-full max-w-md space-y-4 rounded-2xl border border-line bg-white p-6 shadow-lg"
+            className="w-full max-w-md space-y-4 rounded-2xl border border-line bg-paper p-6 shadow-lg"
           >
             <h2 id="hours-edit-title" className="text-lg font-medium text-ink">
               ¿Editar horas de personas a mano?
@@ -143,20 +148,12 @@ export function HoursMatrixEditor({
               podés pisar o desalinearte del origen. ¿Seguro que querés activar la edición manual?
             </p>
             <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded-full border border-line px-4 py-2 text-sm text-navy hover:bg-canvas"
-                onClick={() => setConfirmOpen(false)}
-              >
+              <Button type="button" variant="ghost" onClick={() => setConfirmOpen(false)}>
                 Cancelar
-              </button>
-              <button
-                type="button"
-                className="rounded-full bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-navy"
-                onClick={confirmEnableActuals}
-              >
+              </Button>
+              <Button type="button" variant="ink" onClick={confirmEnableActuals}>
                 Sí, editar a mano
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -330,7 +327,7 @@ function PersonRow({
             onKeyDown={(e) => {
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             }}
-            className="w-20 rounded-md border border-line bg-white px-2 py-1 text-right tabular-nums outline-none focus:border-cyan"
+            className="w-20 rounded-md border border-line bg-paper px-2 py-1 text-right tabular-nums outline-none focus:border-cyan"
             placeholder="0:00"
           />
         ) : (
@@ -356,7 +353,7 @@ function PersonRow({
               onKeyDown={(e) => {
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
               }}
-              className="w-20 rounded-md border border-line bg-white px-2 py-1 text-right tabular-nums outline-none focus:border-cyan"
+              className="w-20 rounded-md border border-line bg-paper px-2 py-1 text-right tabular-nums outline-none focus:border-cyan"
               placeholder="0:00"
             />
           ) : (

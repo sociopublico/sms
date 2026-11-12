@@ -157,6 +157,7 @@ INSERT INTO public.task_roles (task_id, role_id) VALUES ('74c597bf-e4b6-5c6d-b6f
 INSERT INTO public.task_roles (task_id, role_id) VALUES ('660e56be-3802-5faf-be94-f167e0e60480', '09b27e42-204d-51a7-ac5e-7c4e707419fc') ON CONFLICT DO NOTHING;
 INSERT INTO public.task_roles (task_id, role_id) VALUES ('1afc84e6-efc4-5b44-8c37-a71f4a81186f', '571b361f-231f-5f35-ae9c-ceb544277dd7') ON CONFLICT DO NOTHING;
 INSERT INTO public.task_roles (task_id, role_id) VALUES ('ac8ae480-c29c-54d6-a2b7-13d41ab434e2', '6d79035d-64bf-5332-b090-a5c27feb2756') ON CONFLICT DO NOTHING;
+INSERT INTO public.task_roles (task_id, role_id) VALUES ('ac8ae480-c29c-54d6-a2b7-13d41ab434e2', 'f3382b66-24a7-5bfd-bf4f-d65971edee06') ON CONFLICT DO NOTHING;
 INSERT INTO public.task_roles (task_id, role_id) VALUES ('b043c865-fdba-59c6-b806-ac2abc92a9a0', 'a4a735a2-3ae5-5180-9940-cb61138aea47') ON CONFLICT DO NOTHING;
 INSERT INTO public.task_roles (task_id, role_id) VALUES ('b043c865-fdba-59c6-b806-ac2abc92a9a0', '865eb210-dd8b-5e27-a6d5-9b588d8ee3c3') ON CONFLICT DO NOTHING;
 INSERT INTO public.task_roles (task_id, role_id) VALUES ('36bdaa7f-0a20-5b11-98b3-75e0257a0a56', '76b9e5a1-5df1-5430-a06b-00ae32259606') ON CONFLICT DO NOTHING;

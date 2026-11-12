@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { forwardRef } from "react";
 
 const VARIANTS = {
   primary:
@@ -6,6 +7,7 @@ const VARIANTS = {
   ink: "bg-ink text-white hover:bg-navy hover:text-white rounded-full px-4 py-2",
   ghost:
     "border border-line bg-paper text-navy hover:bg-canvas hover:text-navy rounded-full px-4 py-2",
+  danger: "bg-danger text-white hover:opacity-90 hover:text-white rounded-full px-4 py-2",
 } as const;
 
 type Variant = keyof typeof VARIANTS;
@@ -33,22 +35,24 @@ type ButtonAsLink = Common &
     href: string;
   };
 
-export function Button(props: ButtonAsButton | ButtonAsLink) {
-  const { variant = "ink", className = "", children, ...rest } = props;
-  const classes = buttonClass(variant, className);
+export const Button = forwardRef<HTMLButtonElement, ButtonAsButton | ButtonAsLink>(
+  function Button(props, ref) {
+    const { variant = "ink", className = "", children, ...rest } = props;
+    const classes = buttonClass(variant, className);
 
-  if ("href" in rest && rest.href) {
-    const { href, ...linkRest } = rest;
+    if ("href" in rest && rest.href) {
+      const { href, ...linkRest } = rest;
+      return (
+        <Link href={href} className={classes} {...linkRest}>
+          {children}
+        </Link>
+      );
+    }
+
     return (
-      <Link href={href} className={classes} {...linkRest}>
+      <button ref={ref} className={classes} {...(rest as ButtonAsButton)}>
         {children}
-      </Link>
+      </button>
     );
-  }
-
-  return (
-    <button className={classes} {...(rest as ButtonAsButton)}>
-      {children}
-    </button>
-  );
-}
+  },
+);

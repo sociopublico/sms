@@ -2,6 +2,7 @@ import { requireWriter } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { HoursMatrixEditor } from "@/components/HoursMatrixEditor";
 import { FilterChips } from "@/components/ui/FilterChips";
+import { Field, fieldControlClass } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { monthLabelEs } from "@/lib/toggl-import";
 
@@ -14,28 +15,37 @@ export default async function HorasPage({
   const { q, year } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: entries }, { data: budgets }, { data: people }] = await Promise.all([
-    supabase
-      .from("time_entries")
-      .select(
-        "person_id, raw_client_label, raw_project_label, project_id, month_start, hours, people(display_name)",
-      ),
-    supabase
-      .from("person_project_budgets")
-      .select(
-        "person_id, raw_client_label, raw_project_label, project_id, estimated_hours, people(display_name)",
-      ),
+  const [{ data: monthRows }, { data: people }] = await Promise.all([
+    supabase.from("time_entries").select("month_start"),
     supabase.from("people").select("id, display_name").eq("hidden", false).order("display_name"),
   ]);
 
-  const months = new Set<string>();
-  for (const entry of entries ?? []) months.add(entry.month_start);
-  const allMonths = [...months].sort();
+  const allMonths = [...new Set((monthRows ?? []).map((row) => row.month_start))].sort();
   const years = [...new Set(allMonths.map((m) => m.slice(0, 4)))].sort();
   const activeYear = year && years.includes(year) ? year : years[years.length - 1] ?? null;
   const visibleMonths = activeYear
     ? allMonths.filter((m) => m.startsWith(activeYear))
     : allMonths;
+  const yearStart = activeYear ? `${activeYear}-01-01` : null;
+  const yearEnd = activeYear ? `${activeYear}-12-31` : null;
+
+  let entriesQuery = supabase
+    .from("time_entries")
+    .select(
+      "person_id, raw_client_label, raw_project_label, project_id, month_start, hours, people(display_name)",
+    );
+  if (yearStart && yearEnd) {
+    entriesQuery = entriesQuery.gte("month_start", yearStart).lte("month_start", yearEnd);
+  }
+
+  const [{ data: entries }, { data: budgets }] = await Promise.all([
+    entriesQuery,
+    supabase
+      .from("person_project_budgets")
+      .select(
+        "person_id, raw_client_label, raw_project_label, project_id, estimated_hours, people(display_name)",
+      ),
+  ]);
 
   type PersonCell = {
     personId: string;
@@ -98,7 +108,6 @@ export default async function HorasPage({
   }
 
   for (const entry of entries ?? []) {
-    if (activeYear && !entry.month_start.startsWith(activeYear)) continue;
     const group = ensureGroup(entry.raw_client_label, entry.raw_project_label, entry.project_id);
     const name = personNameFrom(
       entry.people as { display_name: string } | { display_name: string }[] | null,
@@ -174,12 +183,14 @@ export default async function HorasPage({
         <FilterChips items={yearChips} />
         <form className="ml-auto">
           {activeYear ? <input type="hidden" name="year" value={activeYear} /> : null}
-          <input
-            name="q"
-            defaultValue={q ?? ""}
-            placeholder="Buscar cliente, proyecto o persona…"
-            className="w-64 rounded-full border border-line bg-paper px-4 py-2 text-sm text-ink outline-none focus:border-cyan"
-          />
+          <Field label="Buscar" className="min-w-64">
+            <input
+              name="q"
+              defaultValue={q ?? ""}
+              placeholder="Cliente, proyecto o persona…"
+              className={`${fieldControlClass} !rounded-full`}
+            />
+          </Field>
         </form>
       </div>
       <HoursMatrixEditor

@@ -33,11 +33,13 @@ export function ProjectHoursAliases({
   projectId,
   aliases,
   unmatched,
+  unmatchedTruncated = false,
   canWrite,
 }: {
   projectId: string;
   aliases: ProjectAliasRow[];
   unmatched: UnmatchedHoursLabel[];
+  unmatchedTruncated?: boolean;
   canWrite: boolean;
 }) {
   const [pending, startTransition] = useTransition();
@@ -171,8 +173,17 @@ export function ProjectHoursAliases({
               ) : (
                 <p className="text-sm text-muted">
                   {filtered.length} de {sorted.length} labels · ordenados por cliente
+                  {unmatchedTruncated
+                    ? " · mostrando hasta 2000 filas de time_entries sin proyecto"
+                    : ""}
                 </p>
               )}
+              {unmatchedTruncated ? (
+                <p className="text-sm text-danger">
+                  La lista de labels sin vincular está truncada. Vinculá aliases y volvé a cargar para
+                  ver el resto.
+                </p>
+              ) : null}
             </div>
           ) : null}
           <Field label="Alias / nombre en sheet">

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
   disconnectDrive,
@@ -9,6 +10,9 @@ import {
 import { loadDriveHoursFile, markDriveHoursFileSkipped } from "@/app/(app)/hours-actions";
 import { ConnectDriveButton } from "@/components/ConnectDriveButton";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDelete } from "@/components/ui/ConfirmDelete";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageNotice } from "@/components/ui/PageNotice";
 import { DRIVE_ROOT_FOLDER_ID } from "@/lib/drive-constants";
 
 type SyncFile = {
@@ -49,23 +53,30 @@ export function HoursSyncPanel({
   banner?: { kind: "ok" | "error"; text: string } | null;
   groups: SyncGroup[];
 }) {
+  const router = useRouter();
   const [settingsOpen, setSettingsOpen] = useState(!driveConnected);
   const [openPeople, setOpenPeople] = useState<Record<string, boolean>>({});
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function togglePerson(name: string) {
     setOpenPeople((prev) => ({ ...prev, [name]: !prev[name] }));
   }
 
-  function run(action: () => Promise<unknown>) {
+  function finishWithNotice(text: string, kind: "ok" | "error" = "ok") {
+    const params = new URLSearchParams();
+    params.set("notice", text);
+    params.set("noticeKind", kind);
+    router.replace(`/horas/sync?${params.toString()}`);
+    router.refresh();
+  }
+
+  function run(action: () => Promise<string | void>) {
     setError(null);
-    setMessage(null);
     startTransition(async () => {
       try {
-        await action();
-        window.location.reload();
+        const message = await action();
+        finishWithNotice(message || "Listo.");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error");
       }
@@ -74,17 +85,7 @@ export function HoursSyncPanel({
 
   return (
     <div className="space-y-6">
-      {banner ? (
-        <p
-          className={`rounded-xl border px-4 py-3 text-sm text-ink ${
-            banner.kind === "ok"
-              ? "border-green/30 bg-green/10"
-              : "border-danger/30 bg-danger/10"
-          }`}
-        >
-          {banner.text}
-        </p>
-      ) : null}
+      {banner ? <PageNotice kind={banner.kind} text={banner.text} clearHref="/horas/sync" /> : null}
 
       <div className="flex justify-end">
         <button
@@ -126,15 +127,18 @@ export function HoursSyncPanel({
                   Carpeta: {rootFolderId || DRIVE_ROOT_FOLDER_ID}
                 </p>
                 {isAdmin ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="!px-3 !py-1.5 !text-xs"
-                    disabled={pending}
-                    onClick={() => run(() => disconnectDrive())}
-                  >
-                    Desconectar
-                  </Button>
+                  <ConfirmDelete
+                    label="la conexión de Drive"
+                    title="¿Desconectar Google Drive?"
+                    description="Se corta el sync de CSVs para todo el equipo hasta que un admin vuelva a conectar."
+                    confirmLabel="Desconectar"
+                    triggerLabel="Desconectar"
+                    triggerClassName="inline-flex items-center justify-center rounded-full border border-line bg-paper px-3 py-1.5 text-xs font-medium text-navy hover:bg-canvas hover:text-navy disabled:cursor-not-allowed disabled:opacity-50"
+                    action={async () => {
+                      await disconnectDrive();
+                      finishWithNotice("Drive desconectado.");
+                    }}
+                  />
                 ) : null}
               </div>
             ) : (
@@ -154,9 +158,7 @@ export function HoursSyncPanel({
               onClick={() =>
                 run(async () => {
                   const result = await registerDriveHoursFiles();
-                  setMessage(
-                    `Estado actualizado: ${result.upserted} archivos · ${result.syncedHistorical} históricos · ${result.pending} pendientes.`,
-                  );
+                  return `Estado actualizado: ${result.upserted} archivos · ${result.syncedHistorical} históricos · ${result.pending} pendientes.`;
                 })
               }
             >
@@ -176,11 +178,9 @@ export function HoursSyncPanel({
               onClick={() =>
                 run(async () => {
                   const result = await importHoursSheet();
-                  setMessage(
+                  return (
                     `Tabla pisada: ${result.budgetsUpserted} PROY · ${result.entriesUpserted} entries` +
-                      (result.skippedPersonRows
-                        ? ` · salteadas ${result.skippedPersonRows}`
-                        : ""),
+                    (result.skippedPersonRows ? ` · salteadas ${result.skippedPersonRows}` : "")
                   );
                 })
               }
@@ -196,7 +196,6 @@ export function HoursSyncPanel({
       ) : null}
 
       {error ? <p className="text-sm text-danger">{error}</p> : null}
-      {message ? <p className="text-sm text-navy">{message}</p> : null}
 
       {!driveConnected ? (
         <p className="text-sm text-muted">
@@ -205,10 +204,10 @@ export function HoursSyncPanel({
       ) : null}
 
       {groups.length === 0 ? (
-        <p className="rounded-xl border border-line bg-paper px-4 py-8 text-center text-sm text-muted">
-          Todavía no hay CSVs indexados. Abrí el engranaje y usá{" "}
-          <span className="font-medium text-ink">Actualizar estado CSVs</span>.
-        </p>
+        <EmptyState
+          title="Todavía no hay CSVs indexados"
+          description='Abrí el engranaje y usá “Actualizar estado CSVs”.'
+        />
       ) : (
         <ul className="space-y-3">
           {groups.map((group) => {
@@ -239,7 +238,7 @@ export function HoursSyncPanel({
                     <CountPill
                       label="no compatibles"
                       count={group.incompatible}
-                      className="bg-danger/10 text-danger"
+                      className="bg-danger/10 text-ink"
                     />
                   </span>
                 </button>
@@ -268,7 +267,12 @@ export function HoursSyncPanel({
                               variant="primary"
                               className="!px-3 !py-1.5 !text-xs"
                               disabled={pending || !file.personId}
-                              onClick={() => run(() => loadDriveHoursFile(file.id))}
+                              onClick={() =>
+                                run(async () => {
+                                  await loadDriveHoursFile(file.id);
+                                  return `Cargado: ${file.fileName}`;
+                                })
+                              }
                             >
                               Cargar
                             </Button>
@@ -277,7 +281,12 @@ export function HoursSyncPanel({
                               variant="ghost"
                               className="!px-3 !py-1.5 !text-xs"
                               disabled={pending}
-                              onClick={() => run(() => markDriveHoursFileSkipped(file.id))}
+                              onClick={() =>
+                                run(async () => {
+                                  await markDriveHoursFileSkipped(file.id);
+                                  return `Omitido: ${file.fileName}`;
+                                })
+                              }
                             >
                               Skip
                             </Button>
@@ -327,7 +336,7 @@ function StatusBadge({ status }: { status: string }) {
       : status === "pending"
         ? "bg-cyan/10 text-cyan"
         : status === "error"
-          ? "bg-danger/10 text-danger"
+          ? "bg-danger/15 text-ink"
           : "bg-canvas text-muted";
   return (
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${tone}`}>

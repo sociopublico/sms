@@ -124,7 +124,7 @@ function NavDropdown({
       {open ? (
         <div
           id={menuId}
-          className="absolute left-0 top-full z-50 mt-2 min-w-52 rounded-xl border border-line bg-white p-1.5 shadow-sm"
+          className="absolute left-0 top-full z-50 mt-2 min-w-52 rounded-xl border border-line bg-paper p-1.5 shadow-sm"
         >
           {group.items.map((item) => (
             <Link
@@ -230,7 +230,7 @@ export function AppShell({
 
   return (
     <div className="min-h-full bg-canvas text-navy">
-      <header className="sticky top-0 z-[100] h-16 border-b border-line bg-white">
+      <header className="sticky top-0 z-[100] h-16 border-b border-line bg-paper">
         <div className="flex h-full w-full items-center justify-between gap-6 px-6">
           <div className="flex min-w-0 items-center gap-8">
             <Link href="/timeline" className="flex min-w-0 items-center gap-2 text-navy hover:text-navy">
@@ -239,7 +239,7 @@ export function AppShell({
                 Socio Management System
               </span>
             </Link>
-            <nav className="hidden items-center gap-5 xl:flex">
+            <nav className="hidden items-center gap-5 xl:flex" aria-label="Principal">
               {nav.map((group) => (
                 <NavDropdown key={group.id} group={group} />
               ))}
@@ -253,7 +253,9 @@ export function AppShell({
             <button
               type="button"
               className="flex h-9 w-9 flex-col items-center justify-center gap-1.5 xl:hidden"
-              aria-label="Abrir menú"
+              aria-label={open ? "Cerrar menú" : "Abrir menú"}
+              aria-expanded={open}
+              aria-controls="mobile-nav"
               onClick={() => setOpen((value) => !value)}
             >
               <span className="block h-px w-5 bg-navy" />
@@ -263,7 +265,11 @@ export function AppShell({
           </div>
         </div>
         {open ? (
-          <nav className="flex flex-col gap-2 border-t border-line bg-paper px-6 py-4 xl:hidden">
+          <nav
+            id="mobile-nav"
+            className="flex flex-col gap-2 border-t border-line bg-paper px-6 py-4 xl:hidden"
+            aria-label="Principal móvil"
+          >
             {nav.map((group) => (
               <MobileGroup key={group.id} group={group} onNavigate={() => setOpen(false)} />
             ))}

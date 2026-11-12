@@ -1,11 +1,12 @@
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { setPersonHidden, upsertPerson } from "../catalog-actions";
+import { renamePerson, setPersonHidden, upsertPerson } from "../catalog-actions";
 import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { ConfirmDelete } from "@/components/ui/ConfirmDelete";
 import { Field, fieldControlClass } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 
 export default async function PeoplePage() {
   const session = await requireSession();
@@ -23,7 +24,7 @@ export default async function PeoplePage() {
     <div className="space-y-6">
       <PageHeader
         title="Personas"
-        description="Ocultar a alguien lo saca de Timeline y Workload, sin borrarlo del catálogo."
+        description="El nombre es el que se ve en timeline, carga y el menú. Ocultar a alguien lo saca de esas vistas, sin borrarlo del catálogo."
       />
 
       {session.canWrite ? (
@@ -49,15 +50,13 @@ export default async function PeoplePage() {
                 </div>
               </div>
             </div>
-            <Button type="submit" className="mt-4">
-              Guardar
-            </Button>
+            <SubmitButton className="mt-4">Guardar</SubmitButton>
           </form>
         </Card>
       ) : null}
 
-      <Card className="overflow-hidden">
-        <table className="w-full border-collapse text-sm">
+      <Card className="overflow-x-auto">
+        <table className="w-full min-w-[36rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-line text-left text-muted">
               <th className="px-4 py-3 font-medium">Persona</th>
@@ -81,19 +80,47 @@ export default async function PeoplePage() {
                   className={`border-b border-line last:border-0 ${person.hidden ? "bg-canvas/60" : ""}`}
                 >
                   <td className="px-4 py-3 font-medium text-ink">
-                    <span className="inline-flex items-center gap-2">
-                      {person.display_name}
-                      {person.hidden ? <Badge status="pausado">oculta</Badge> : null}
-                    </span>
+                    {session.canWrite ? (
+                      <form action={renamePerson.bind(null, person.id)} className="flex flex-wrap items-center gap-2">
+                        <input
+                          name="display_name"
+                          required
+                          defaultValue={person.display_name}
+                          aria-label={`Nombre de ${person.display_name}`}
+                          className={`${fieldControlClass} max-w-56`}
+                        />
+                        <button type="submit" className="text-sm text-navy hover:text-cyan">
+                          Guardar
+                        </button>
+                        {person.hidden ? <Badge status="pausado">oculta</Badge> : null}
+                      </form>
+                    ) : (
+                      <span className="inline-flex items-center gap-2">
+                        {person.display_name}
+                        {person.hidden ? <Badge status="pausado">oculta</Badge> : null}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted">{roleNames || "—"}</td>
                   {session.canWrite ? (
                     <td className="px-4 py-3 text-right">
-                      <form action={setPersonHidden.bind(null, person.id, !person.hidden)}>
-                        <button type="submit" className="text-sm text-navy hover:text-cyan">
-                          {person.hidden ? "Mostrar" : "Ocultar"}
-                        </button>
-                      </form>
+                      {person.hidden ? (
+                        <form action={setPersonHidden.bind(null, person.id, false)}>
+                          <button type="submit" className="text-sm text-navy hover:text-cyan">
+                            Mostrar
+                          </button>
+                        </form>
+                      ) : (
+                        <ConfirmDelete
+                          label={person.display_name}
+                          title={`¿Ocultar a ${person.display_name}?`}
+                          description="Desaparece de timeline, workload y menús. No se borra del catálogo."
+                          confirmLabel="Ocultar"
+                          triggerLabel="Ocultar"
+                          triggerClassName="text-sm text-navy hover:text-cyan"
+                          action={setPersonHidden.bind(null, person.id, true)}
+                        />
+                      )}
                     </td>
                   ) : null}
                 </tr>

@@ -54,8 +54,8 @@ export default async function TasksPage() {
           </form>
         </Card>
       ) : null}
-      <Card className="overflow-hidden">
-        <table className="w-full text-sm">
+      <Card className="overflow-x-auto">
+        <table className="w-full min-w-[36rem] text-sm">
           <thead>
             <tr className="border-b border-line text-left text-muted">
               <th className="px-4 py-3 font-medium">Tarea</th>

@@ -19,6 +19,7 @@ const ACTION_LABEL: Record<string, string> = {
   "users.add_user": "Sumó usuario",
   "users.add_editor": "Invitó editor",
   "catalog.upsert_person": "Guardó persona",
+  "catalog.rename_person": "Renombró persona",
   "catalog.set_person_hidden": "Ocultó/mostró persona",
   "catalog.upsert_role": "Guardó rol",
   "catalog.archive_role": "Archivó rol",
@@ -211,8 +212,8 @@ export default async function LogPage({
           </Button>
         </form>
       </Card>
-      <Card>
-        <table className="w-full border-collapse text-sm">
+      <Card className="overflow-x-auto">
+        <table className="w-full min-w-[48rem] border-collapse text-sm">
           <thead>
             <tr className="text-left text-muted">
               <th className="sticky top-16 z-20 border-b border-line bg-paper px-4 py-2.5 font-medium">Cuando</th>

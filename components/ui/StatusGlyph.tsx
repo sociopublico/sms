@@ -15,6 +15,7 @@ export function StatusGlyph({
 
   return (
     <span
+      role="img"
       className={`inline-flex ${tone} ${className}`.trim()}
       aria-label={label}
       title={title === false ? undefined : label}

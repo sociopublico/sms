@@ -30,7 +30,7 @@ export function HoverTip({
       {children}
       {tip ? (
         <span
-          className="pointer-events-none fixed z-[110] max-w-xs rounded-2xl border border-line bg-white px-3 py-2 text-sm font-medium text-ink"
+          className="pointer-events-none fixed z-[110] max-w-xs rounded-2xl border border-line bg-paper px-3 py-2 text-sm font-medium text-ink"
           style={{
             top: tip.top,
             left: tip.left,
