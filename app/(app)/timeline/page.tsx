@@ -1,7 +1,14 @@
 import { Suspense } from "react";
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { addWeeks, mondayOf, toISODate, weekRange } from "@/lib/dates";
+import {
+  addWeeks,
+  mondayOf,
+  TIMELINE_VISIBLE_WEEKS,
+  TIMELINE_WEEK_BUFFER,
+  toISODate,
+  weekRange,
+} from "@/lib/dates";
 import { TimelineGrid, type TimelineRow, type TimelineTask } from "@/components/TimelineGrid";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -12,24 +19,26 @@ export default async function TimelinePage({
 }) {
   const session = await requireSession();
   const { start } = await searchParams;
-  const startMonday = start ?? toISODate(addWeeks(mondayOf(new Date()), -4));
-  const weeks = weekRange(startMonday, 12);
+  const windowStart = start ?? toISODate(addWeeks(mondayOf(new Date()), -4));
+  const rangeStart = toISODate(addWeeks(new Date(`${windowStart}T00:00:00Z`), -TIMELINE_WEEK_BUFFER));
+  const weeks = weekRange(rangeStart, TIMELINE_WEEK_BUFFER + TIMELINE_VISIBLE_WEEKS + TIMELINE_WEEK_BUFFER);
   const thisWeek = toISODate(mondayOf(new Date()));
   const supabase = await createClient();
 
-  const { data: workstreams } = await supabase
-    .from("workstreams")
-    .select(
-      "id, name, status, start_on, end_on, projects(id, code, name, status, kind, clients(name)), assignments(roles(name), people(display_name, hidden))",
-    )
-    .in("status", ["en_curso", "pausado", "mantenimiento", "finalizado"])
-    .order("name");
-
-  const { data: tasks } = await supabase.from("tasks").select("id, name, color").is("deleted_at", null).order("name");
-  const { data: weekRows } = await supabase
-    .from("timeline_weeks")
-    .select("id, workstream_id, week_start, timeline_week_tasks(task_id, tasks(id, name, color))")
-    .in("week_start", weeks);
+  const [{ data: workstreams }, { data: tasks }, { data: weekRows }] = await Promise.all([
+    supabase
+      .from("workstreams")
+      .select(
+        "id, name, status, start_on, end_on, projects(id, code, name, status, kind, clients(name)), assignments(roles(name), people(display_name, hidden))",
+      )
+      .in("status", ["en_curso", "pausado", "mantenimiento", "finalizado"])
+      .order("name"),
+    supabase.from("tasks").select("id, name, color").is("deleted_at", null).order("name"),
+    supabase
+      .from("timeline_weeks")
+      .select("id, workstream_id, week_start, timeline_week_tasks(task_id, tasks(id, name, color))")
+      .in("week_start", weeks),
+  ]);
 
   const tasksByWs: Record<string, Record<string, TimelineTask[]>> = {};
   for (const row of weekRows ?? []) {
@@ -103,6 +112,7 @@ export default async function TimelinePage({
       <Suspense fallback={null}>
         <TimelineGrid
           weeks={weeks}
+          windowStart={windowStart}
           rows={rows}
           tasks={(tasks ?? []) as TimelineTask[]}
           canWrite={session.canWrite}

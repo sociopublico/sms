@@ -1,7 +1,10 @@
 -- Workload detail: cliente + flag always_on_duty para tooltips.
 -- Investigación: la tarea cuenta también para el rol Investigación (no solo PM).
+-- DROP + CREATE: CREATE OR REPLACE no puede renombrar columnas de la vista.
 
-CREATE OR REPLACE VIEW public.person_week_load_detail
+DROP VIEW IF EXISTS public.person_week_load_detail;
+
+CREATE VIEW public.person_week_load_detail
 WITH (security_invoker = true) AS
 SELECT DISTINCT
   p.id AS person_id,
