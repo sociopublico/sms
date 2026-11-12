@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { addWeeks, mondayOf, toISODate, weekRange } from "@/lib/dates";
-import { LoadHeatmap, type LoadDetail } from "@/components/LoadHeatmap";
+import { LoadHeatmap } from "@/components/LoadHeatmap";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -20,43 +20,22 @@ export default async function CargaPage({
   const weekQuery = [...new Set([...weeks, thisWeek, nextWeek])];
 
   const supabase = await createClient();
-  const [{ data: people }, { data: cells }, { data: details }, { data: roles }, { data: projects }] =
-    await Promise.all([
-      supabase
-        .from("people")
-        .select("id, display_name, person_roles(role_id)")
-        .is("deleted_at", null)
-        .eq("hidden", false)
-        .order("display_name"),
-      supabase.from("person_week_load").select("person_id, week_start, load_count").in("week_start", weekQuery),
-      supabase
-        .from("person_week_load_detail")
-        .select("person_id, week_start, project_id, project_code, workstream_name, task_name, role_name")
-        .in("week_start", weeks),
-      supabase.from("roles").select("id, name").is("deleted_at", null).order("name"),
-      supabase.from("projects").select("id, name, code, clients(name)"),
-    ]);
-
-  const projectById = new Map(
-    (projects ?? []).map((row) => {
-      const clientRel = row.clients as { name: string } | { name: string }[] | null;
-      const clientName = Array.isArray(clientRel) ? clientRel[0]?.name : clientRel?.name;
-      return [row.id, { name: row.name?.trim() || "", clientName: clientName ?? "" }] as const;
-    }),
-  );
-  const loadDetails: LoadDetail[] = (details ?? []).map((detail) => {
-    const project = projectById.get(detail.project_id);
-    return {
-      person_id: detail.person_id,
-      week_start: detail.week_start,
-      project_code: detail.project_code,
-      project_name: project?.name || "",
-      client_name: project?.clientName || "",
-      workstream_name: detail.workstream_name,
-      task_name: detail.task_name,
-      role_name: detail.role_name,
-    };
-  });
+  const [{ data: people }, { data: cells }, { data: details }, { data: roles }] = await Promise.all([
+    supabase
+      .from("people")
+      .select("id, display_name, person_roles(role_id)")
+      .is("deleted_at", null)
+      .eq("hidden", false)
+      .order("display_name"),
+    supabase.from("person_week_load").select("person_id, week_start, load_count").in("week_start", weekQuery),
+    supabase
+      .from("person_week_load_detail")
+      .select(
+        "person_id, week_start, project_id, project_code, client_name, workstream_id, workstream_name, task_name, role_name, always_on_duty",
+      )
+      .in("week_start", weeks),
+    supabase.from("roles").select("id, name").is("deleted_at", null).order("name"),
+  ]);
 
   const filtered = (people ?? []).filter((p) => {
     if (!role) return true;
@@ -93,7 +72,7 @@ export default async function CargaPage({
           people={filtered}
           weeks={weeks}
           cells={cells ?? []}
-          details={loadDetails}
+          details={details ?? []}
           cyanDotIds={cyanDotIds}
           orangeDotIds={orangeDotIds}
           thisWeek={thisWeek}
