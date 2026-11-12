@@ -1,59 +1,29 @@
 # Backlog conocido
 
-Cosas que el equipo ya marcó. Si vas a agarrar una, confirmá con Agus / Kike / Ale porque varias son de producto, no solo de código.
+Cosas que el equipo ya marcó y **no** están hechas. Si vas a agarrar una, confirmá con Agus / Kike / Ale porque varias son de producto, no solo de código.
 
-## Feedback Juli + Agus (nov 2026)
+## Producto
 
-Vistas que usa Juli: Timeline, Personas / Workload.
+- La ficha de proyecto y el nomenclador (`code`) deberían vivir juntos.
+- Revisar qué ve Staff vs Editor vs Admin (hoy Staff = mismo `can_write` que Editor; UI todavía no diferencia).
 
-### Ya existe (no re-pedir)
+## Proyectos
 
-- Vista mensual del Timeline (`?view=month`).
-- Orden default alfabético por cliente en Timeline.
-- Proyecto con 1 solo workstream: una línea, sin desplegable.
-- Workload ordenado por `display_name`.
-- Filtros de proyectos: ficha sí/no, alias de horas sí/no.
-- Fechas de contrato del proyecto (`kickoff_on` / `end_on`) en el form.
+- (Hecho) Filtros: cliente, tiene ficha sí/no, tiene alias de horas sí/no; expandir/colapsar todos removido.
+- (Hecho) Datos de contrato en ficha (partner, fechas, propuesta, carpeta, duración, agenda de pagos, punto de cobro).
+- (Hecho) Campo `name` (nombre del proyecto) antes de tipo en alta/edición; la UI sugiere `code` (`Cliente_Nombre_yyyy-mm` / `InternoSocio_Nombre_yyyy-mm`; espacios → `-`, partes → `_`) y se puede editar a mano (proyectos viejos conservan el suyo). Fecha de firma obligatoria y antes del ID.
+- (Hecho) `actual_end_on` (fin real) aparte de `end_on` (fin de contrato); labels UI actualizados; al setear contrato se autocompleta el fin real.
+- (Hecho) Recordatorio de retención de archivos a los 90 días de `actual_end_on` (carteles en `/editor`, `/staff`, ficha; tilde hecho/no aplica; tarea en timeline).
 
-### Timeline — hecho en este lote
+## Workstreams
 
-- Tooltip / editor de agregar tareas: flip vertical cuando estás abajo.
-- Slide de semanas más smooth (420ms).
-- Toggle “Más columnas” (18 semanas / 8 meses).
+- Entregables: schema `deliverables` listo; UI en ficha de workstream (CRUD + archivar). Falta mostrarlos en la lista de proyectos. Avisos a Kike = a futuro.
+- (Hecho) Equipo: tabla persona → roles (varios roles por persona); form de alta colapsado.
 
-### Timeline — pendiente
+## Timeline
 
 - Marcar inicio/fin pautado del proyecto en la grilla.
-- Marcar fecha estimada de entregables.
-
-### Workload — hecho en este lote
-
-- Tooltip rico: Cliente → Proyecto → Workstream → tipo (si es PM / always_on_duty, mostrar el rol).
-- Links a proyecto y workstream desde el tooltip.
-- Investigación linkeada al rol Investigación (`task_roles` + migración).
-
-### Navegación — hecho en este lote
-
-- Código de proyecto clickeable en Timeline → `/proyectos/[id]`.
-- Ficha workstream: título = cliente; botón “Ir al proyecto”.
-
-### Producto abierto (no codear todavía)
-
-- Estado de cierre de un proyecto: indicaciones de qué pasa; Ale dice cuándo terminan, no por la fecha actual. Pensarlo mejor.
-- “Que la bajada sea… horas con Clientes”: sin definir aún (¿Horas? ¿Workload?).
-- Quizá sacar “abrir todos / cerrar todos” del Timeline si estorba.
-
-## Producto (previo)
-
-- Workstream y proyecto tienen que sentirse más distintos (hoy el alta a veces los mezcla).
-- La ficha de proyecto y el nomenclador (`code`) deberían vivir juntos (parcial: mismo form).
-- Revisar qué ve una PM vs un admin (hoy Editor = casi todo menos usuarios/logs/conectar Drive).
-
-## Workstreams (previo)
-
-- Entregables con fecha estimada y fecha real; mostrarlos en la lista de proyectos.
-- A futuro: avisos a Kike cuando hay entregables nuevos.
-- El form de equipo (persona + rol) es incómodo: debería parecerse a una tabla, una persona con varios roles de una.
+- Marcar fecha de entregables.
 
 ## Horas / Toggl
 

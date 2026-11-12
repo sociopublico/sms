@@ -11,7 +11,7 @@ Leé `AGENTS.md` y `README.md` antes de cambiar arquitectura, auth o schema.
 
 - Next.js 16 App Router (`proxy.ts`, no `middleware.ts`). `params` / `searchParams` / `cookies()` async.
 - Supabase + Google Auth, solo `@sociopublico.com`.
-- Roles: `admin` Admin, `pm` Editor, `member` Lector. Escritura vía `requireWriter` / `canWrite`.
+- Roles: `admin` Admin, `pm` Editor, `staff` Staff, `member` Lector. Escritura vía `requireWriter` / `canWrite` (`admin`/`pm`/`staff`).
 - Mutaciones en `*-actions.ts` envueltas en `withAudit`.
 - `people` (catálogo) ≠ `profiles` (login).
 - Migraciones: `npx supabase migration new …`. Prod SQL: `db push --linked`. Vercel no corre SQL.

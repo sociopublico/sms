@@ -16,7 +16,7 @@ export default async function NewProjectPage() {
     <div className="mx-auto max-w-xl space-y-6">
       <PageHeader
         title="Nuevo proyecto"
-        description="Alta del contrato (cliente, ID, ficha). El workstream se agrega después desde la ficha."
+        description="Alta del contrato (cliente, ID, ficha y datos opcionales). El workstream se agrega después desde la ficha."
       />
       <Card className="p-6">
         <NewProjectForm clients={clients ?? []} />

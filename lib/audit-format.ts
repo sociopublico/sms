@@ -13,6 +13,7 @@ const FIELD_LABEL: Record<string, string> = {
   display_name: "Nombre",
   id: "ID",
   code: "ID",
+  name: "Nombre",
   estado: "Estado",
   status: "Estado",
   tipo: "Tipo",
@@ -25,8 +26,17 @@ const FIELD_LABEL: Record<string, string> = {
   drive_folder_url: "Carpeta general",
   planned_duration: "Duración prevista",
   kickoff_on: "Kickoff",
+  end_on: "Fin",
+  actual_end_on: "Fin real",
   payment_schedule: "Agenda de pagos",
   billing_point: "Punto de cobro",
+  description: "Descripción",
+  triggers_invoice: "Dispara factura",
+  invoice_percent: "Porcentaje",
+  delivery_on: "Fecha de entrega",
+  url: "Link",
+  invoiced: "Facturado",
+  sort_order: "Orden",
   permiso: "Permiso",
   app_role: "Permiso",
   mail: "Mail",
@@ -37,7 +47,6 @@ const FIELD_LABEL: Record<string, string> = {
   inicio: "Inicio",
   start_on: "Inicio",
   fin: "Fin",
-  end_on: "Fin",
   week_start: "Semana",
   local_part: "Mail",
   role: "Permiso",
@@ -92,6 +101,7 @@ function fieldLabel(key: string) {
 function roleValue(raw: string) {
   if (raw === "admin") return "Admin";
   if (raw === "pm") return "Editor";
+  if (raw === "staff") return "Staff";
   if (raw === "member") return "Lector";
   return raw;
 }
@@ -187,7 +197,15 @@ function humanizeRecord(record: Record<string, unknown>, lookups: AuditLookups):
     const text = asText(raw);
     if (!text || UUID.test(text)) continue;
     if (key === "app_role" || key === "role") add("Permiso", roleValue(text));
-    else if (key === "week_start" || key === "start_on" || key === "end_on") add(fieldLabel(key), formatDay(text));
+    else if (
+      key === "week_start" ||
+      key === "start_on" ||
+      key === "end_on" ||
+      key === "actual_end_on" ||
+      key === "kickoff_on" ||
+      key === "contract_signed_on"
+    )
+      add(fieldLabel(key), formatDay(text));
     else if (key === "local_part") add("Mail", `${text}@sociopublico.com`);
     else add(fieldLabel(key), text);
   }

@@ -10,24 +10,12 @@ export type LoadCell = { person_id: string; week_start: string; load_count: numb
 export type LoadDetail = {
   person_id: string;
   week_start: string;
-  project_id: string;
   project_code: string;
+  project_name: string;
   client_name: string;
-  workstream_id: string;
   workstream_name: string;
   task_name: string;
   role_name: string;
-  always_on_duty: boolean;
-};
-
-type TipEntry = {
-  key: string;
-  client_name: string;
-  project_id: string;
-  project_code: string;
-  workstream_id: string;
-  workstream_name: string;
-  typeLabel: string;
 };
 
 const COMPACT_WEEKS = 6;
@@ -49,31 +37,6 @@ function sliceWeeks(weeks: string[], thisWeek: string, count: number) {
   if (i < 0) return weeks.slice(0, count);
   const start = Math.min(Math.max(0, i - 2), weeks.length - count);
   return weeks.slice(start, start + count);
-}
-
-function buildTipEntries(rows: LoadDetail[]): TipEntry[] {
-  const byWs = new Map<string, LoadDetail[]>();
-  for (const row of rows) {
-    const key = `${row.workstream_id}|${row.role_name}`;
-    const list = byWs.get(key);
-    if (list) list.push(row);
-    else byWs.set(key, [row]);
-  }
-  return [...byWs.values()].map((group) => {
-    const first = group[0];
-    const typeLabel = first.always_on_duty
-      ? first.role_name
-      : [...new Set(group.map((g) => g.task_name))].join(", ");
-    return {
-      key: `${first.workstream_id}|${first.role_name}`,
-      client_name: first.client_name || "—",
-      project_id: first.project_id,
-      project_code: first.project_code,
-      workstream_id: first.workstream_id,
-      workstream_name: first.workstream_name,
-      typeLabel,
-    };
-  });
 }
 
 export function LoadHeatmap({
@@ -106,21 +69,9 @@ export function LoadHeatmap({
     top: number;
     left: number;
     place: "left" | "right";
-    vPlace: "center" | "above" | "below";
   } | null>(null);
-  const tipHideTimer = useRef<number | null>(null);
-
-  function clearTipHide() {
-    if (tipHideTimer.current) {
-      window.clearTimeout(tipHideTimer.current);
-      tipHideTimer.current = null;
-    }
-  }
-
-  function scheduleTipHide() {
-    clearTipHide();
-    tipHideTimer.current = window.setTimeout(() => setTip(null), 180);
-  }
+  const [tipNudge, setTipNudge] = useState({ x: 0, y: 0 });
+  const tipBoxRef = useRef<HTMLDivElement>(null);
   const map = useMemo(() => {
     const result = new Map<string, number>();
     for (const cell of cells) {
@@ -172,52 +123,78 @@ export function LoadHeatmap({
     params.set("start", toISODate(addWeeks(new Date(`${weeks[0]}T00:00:00Z`), step)));
   });
 
-  const tipEntries = useMemo(() => {
-    if (tip?.kind !== "cell" || !tip.person || !tip.week) return [];
-    return buildTipEntries(
-      details.filter((d) => d.person_id === tip.person && d.week_start === tip.week),
-    );
-  }, [details, tip]);
+  const tipDetails = tip?.kind === "cell"
+    ? details.filter((d) => d.person_id === tip.person && d.week_start === tip.week)
+    : [];
+  const grouped = useMemo(() => {
+    const byWork = new Map<
+      string,
+      { key: string; workstream: string; tasks: string[]; client: string; project: string }
+    >();
+    for (const detail of tipDetails) {
+      const project = detail.project_name || detail.project_code;
+      const key = `${detail.workstream_name}|${detail.client_name}|${project}`;
+      const existing = byWork.get(key);
+      if (!existing) {
+        byWork.set(key, {
+          key,
+          workstream: detail.workstream_name,
+          tasks: detail.task_name ? [detail.task_name] : [],
+          client: detail.client_name,
+          project,
+        });
+      } else if (detail.task_name && !existing.tasks.includes(detail.task_name)) {
+        existing.tasks.push(detail.task_name);
+      }
+    }
+    return [...byWork.values()].map((item) => ({
+      ...item,
+      tasks: item.tasks.sort((a, b) => a.localeCompare(b, "es")),
+    }));
+  }, [tipDetails]);
 
   function positionTip(el: HTMLElement) {
     const r = el.getBoundingClientRect();
     const gap = 8;
-    const place: "left" | "right" = window.innerWidth - r.right > 240 ? "right" : "left";
-    const tipH = 200;
-    const midY = r.top + r.height / 2;
-    let vPlace: "center" | "above" | "below" = "center";
-    let top = midY;
-    if (midY + tipH / 2 > window.innerHeight - 8) {
-      vPlace = "above";
-      top = r.top - gap;
-    } else if (midY - tipH / 2 < 8) {
-      vPlace = "below";
-      top = r.bottom + gap;
-    }
+    const place: "left" | "right" = window.innerWidth - r.right > 280 ? "right" : "left";
     return {
-      top,
+      top: r.top + r.height / 2,
       left: place === "right" ? r.right + gap : r.left - gap,
       place,
-      vPlace,
     };
   }
 
+  useLayoutEffect(() => {
+    const el = tipBoxRef.current;
+    if (!el) return;
+    const margin = 8;
+    const rect = el.getBoundingClientRect();
+    let x = 0;
+    let y = 0;
+    if (rect.bottom > window.innerHeight - margin) {
+      y -= rect.bottom - (window.innerHeight - margin);
+    }
+    if (rect.top + y < margin) {
+      y += margin - (rect.top + y);
+    }
+    if (rect.right > window.innerWidth - margin) {
+      x -= rect.right - (window.innerWidth - margin);
+    }
+    if (rect.left + x < margin) {
+      x += margin - (rect.left + x);
+    }
+    if (x !== 0 || y !== 0) setTipNudge({ x, y });
+  }, [tip]);
+
   function showCellTip(person: string, week: string, el: HTMLElement) {
-    clearTipHide();
+    setTipNudge({ x: 0, y: 0 });
     setTip({ kind: "cell", person, week, ...positionTip(el) });
   }
 
   function showDotTip(kind: "cyan" | "orange", el: HTMLElement) {
-    clearTipHide();
+    setTipNudge({ x: 0, y: 0 });
     setTip({ kind, ...positionTip(el) });
   }
-
-  useEffect(
-    () => () => {
-      clearTipHide();
-    },
-    [],
-  );
 
   return (
     <div ref={rootRef} className="w-full">
@@ -283,7 +260,7 @@ export function LoadHeatmap({
                     <span
                       role="img"
                       onMouseEnter={(e) => showDotTip("orange", e.currentTarget)}
-                      onMouseLeave={scheduleTipHide}
+                      onMouseLeave={() => setTip(null)}
                       className="inline-block h-2 w-2 rounded-full bg-orange"
                       aria-label="Sin tareas esta semana ni la que viene"
                     />
@@ -291,7 +268,7 @@ export function LoadHeatmap({
                     <span
                       role="img"
                       onMouseEnter={(e) => showDotTip("cyan", e.currentTarget)}
-                      onMouseLeave={scheduleTipHide}
+                      onMouseLeave={() => setTip(null)}
                       className="inline-block h-2 w-2 rounded-full bg-cyan"
                       aria-label="La semana que viene queda en 0"
                     />
@@ -311,7 +288,7 @@ export function LoadHeatmap({
                       type="button"
                       aria-label={`${person.display_name}, semana ${week}: ${count} ${count === 1 ? "tarea" : "tareas"}`}
                       onMouseEnter={(e) => showCellTip(person.id, week, e.currentTarget)}
-                      onMouseLeave={scheduleTipHide}
+                      onMouseLeave={() => setTip(null)}
                       className="h-9 w-full rounded-md text-base font-bold"
                       style={cellStyle(count)}
                     >
@@ -329,42 +306,32 @@ export function LoadHeatmap({
 
       {tip ? (
         <div
-          className={`fixed z-[110] max-w-sm rounded-2xl border border-line bg-paper px-3 py-2 text-sm ${
-            tip.kind === "cell" && tipEntries.length ? "pointer-events-auto" : "pointer-events-none"
-          }`}
+          ref={tipBoxRef}
+          className="pointer-events-none fixed z-[110] max-w-sm rounded-2xl border border-line bg-paper px-3 py-2 text-sm"
           style={{
             top: tip.top,
             left: tip.left,
-            transform: [
-              tip.place === "right" ? "translateX(0)" : "translateX(-100%)",
-              tip.vPlace === "center" ? "translateY(-50%)" : tip.vPlace === "above" ? "translateY(-100%)" : "translateY(0)",
-            ].join(" "),
+            transform:
+              tip.place === "right"
+                ? `translate(${tipNudge.x}px, calc(-50% + ${tipNudge.y}px))`
+                : `translate(calc(-100% + ${tipNudge.x}px), calc(-50% + ${tipNudge.y}px))`,
           }}
-          onMouseEnter={clearTipHide}
-          onMouseLeave={scheduleTipHide}
         >
           {tip.kind === "cyan" ? (
             <p className="font-medium text-ink">La semana que viene queda en 0</p>
           ) : tip.kind === "orange" ? (
             <p className="font-medium text-ink">Esta semana y la que viene quedan en 0</p>
-          ) : tipEntries.length === 0 ? (
+          ) : grouped.length === 0 ? (
             <p className="text-muted">No tiene tareas cargadas esta semana.</p>
           ) : (
-            <ul className="space-y-3 text-ink">
-              {tipEntries.map((entry) => (
-                <li key={entry.key} className="space-y-0.5">
-                  <div className="font-medium text-navy">{entry.client_name}</div>
-                  <div>
-                    <Link href={`/proyectos/${entry.project_id}`} className="text-cyan hover:underline">
-                      {entry.project_code}
-                    </Link>
+            <ul className="space-y-2 text-ink">
+              {grouped.map((item) => (
+                <li key={item.key}>
+                  <div className="font-medium">{item.tasks.join(", ") || item.workstream}</div>
+                  {item.tasks.length ? <div>{item.workstream}</div> : null}
+                  <div className="break-words text-muted">
+                    {[item.client, item.project].filter(Boolean).join(" · ")}
                   </div>
-                  <div>
-                    <Link href={`/workstreams/${entry.workstream_id}`} className="hover:text-cyan hover:underline">
-                      {entry.workstream_name}
-                    </Link>
-                  </div>
-                  <div className="text-muted">{entry.typeLabel}</div>
                 </li>
               ))}
             </ul>

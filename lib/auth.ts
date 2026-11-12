@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export type AppRole = "admin" | "pm" | "member";
+export type AppRole = "admin" | "pm" | "staff" | "member";
 
 export type SessionProfile = {
   id: string;
@@ -10,6 +10,17 @@ export type SessionProfile = {
   canWrite: boolean;
   isAdmin: boolean;
 };
+
+export function homePathForRole(role: AppRole): string {
+  if (role === "staff") return "/staff";
+  if (role === "pm") return "/editor";
+  return "/timeline";
+}
+
+/** Alta de workstreams, equipo, entregables nuevos, etc. (no Staff). */
+export function canManageDelivery(role: AppRole): boolean {
+  return role === "admin" || role === "pm";
+}
 
 export async function getSessionProfile(): Promise<SessionProfile | null> {
   const supabase = await createClient();
@@ -28,7 +39,7 @@ export async function getSessionProfile(): Promise<SessionProfile | null> {
     id: claims.sub,
     email: typeof claims.email === "string" ? claims.email : null,
     appRole,
-    canWrite: appRole === "admin" || appRole === "pm",
+    canWrite: appRole === "admin" || appRole === "pm" || appRole === "staff",
     isAdmin: appRole === "admin",
   };
 }
@@ -41,12 +52,12 @@ export async function requireSession() {
 
 export async function requireAdmin() {
   const profile = await requireSession();
-  if (!profile.isAdmin) redirect("/timeline");
+  if (!profile.isAdmin) redirect(homePathForRole(profile.appRole));
   return profile;
 }
 
 export async function requireWriter() {
   const profile = await requireSession();
-  if (!profile.canWrite) redirect("/timeline");
+  if (!profile.canWrite) redirect(homePathForRole(profile.appRole));
   return profile;
 }

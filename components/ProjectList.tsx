@@ -11,6 +11,7 @@ import { StatusSelect } from "@/components/ui/StatusSelect";
 export type ProjectListItem = {
   id: string;
   code: string;
+  name: string;
   ficha_url: string | null;
   status: string;
   clientName: string;
@@ -78,7 +79,7 @@ export function ProjectList({
       {projects.map((project) => {
         const open = expanded.has(project.id);
         const count = project.workstreams.length;
-        const hasFicha = !missingFicha(project.ficha_url, project.code);
+        const hasFicha = !missingFicha(project.ficha_url);
         const hasWorkstreams = count > 0;
         return (
           <Card key={project.id} className="p-5">
@@ -96,7 +97,7 @@ export function ProjectList({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <Link href={`/proyectos/${project.id}`} className="font-medium text-ink hover:text-cyan">
-                      {project.code}
+                      {project.name || project.code}
                     </Link>
                     <MetaPill ok={hasFicha} okLabel="Con ficha" missingLabel="Sin ficha" />
                     <MetaPill

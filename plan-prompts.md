@@ -71,10 +71,20 @@ con los colores, saquemoslo~~
   - ~~Poder tener filtros de tiene ficha proyectos o no y tiene label de horas o no (el label de horas relaciona el nombre que tiene en la hoja de horas o en los csvs con el nombre que tiene en la lista de proyectos!)~~
   - ~~Creo que no hace falta vistas abrir todos cerrar todos~~
 
+~~En Workstreams~~
+~~Los workstreas tienen entregables que nos importan porque algunos de ellos disparan facturaciones.~~ ~~Los entregables debe tener los siguientes datos asociados ~~
+  - ~~tipo de entregable: selector entre Producto u Horas~~
+  - ~~Descripción campo de texto~~
+  - ~~dispara factura: booleano~~
+  - ~~Porcentaje de facturación: número~~
+  - ~~Fecha de entrega~~
+  - ~~link al entregable: texto~~
+  - ~~facturado: booleano~~
+
 Pendientes:
 
 - La ficha de proyecto y el nomenclador deberían estar en el mismo lugar
-- Que cosas deberian ver las PMs? Que cosas los admins? filtrar un poco ahí, tambien pensar tres tipos de usuarios (solo lectura, pms, admins)
+- Que cosas deberian ver las PMs? Que cosas los admins? filtrar un poco ahí, tambien pensar tres tipos de usuarios (solo lectura, pms, admins,kike?)
 
 - En los workstreams:
   - Deberíamos tener entregables y que las pms puedan configurar fecha estimada y fecha real de entrega, y que en la lista de proyectos aparezcan los entregables y si ya se entregaron o no

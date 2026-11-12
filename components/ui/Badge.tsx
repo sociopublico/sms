@@ -7,7 +7,8 @@ const STYLES: Record<string, string> = {
   lectura: "bg-canvas text-muted",
   admin: "bg-ink text-white",
   pm: "bg-green/15 text-ink",
-  member: "bg-canvas text-muted",
+  staff: "bg-cyan/15 text-navy",
+  member: "bg-canvas text-ink",
   interno: "bg-canvas text-muted",
   cliente: "bg-blue/10 text-navy",
 };

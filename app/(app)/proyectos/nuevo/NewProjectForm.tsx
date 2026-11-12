@@ -1,4 +1,5 @@
 import { createProject } from "../../project-actions";
+import { ProjectContractFields } from "@/components/ProjectContractFields";
 import { ProjectFields } from "@/components/ProjectFields";
 import { Button } from "@/components/ui/Button";
 import { Field, fieldControlClass } from "@/components/ui/Field";
@@ -7,6 +8,7 @@ export function NewProjectForm({ clients }: { clients: { id: string; name: strin
   return (
     <form action={createProject} className="space-y-4">
       <ProjectFields clients={clients} requireKindChoice />
+      <ProjectContractFields />
       <Field label="Estado">
         <select name="status" className={fieldControlClass}>
           <option value="en_curso">En curso</option>
